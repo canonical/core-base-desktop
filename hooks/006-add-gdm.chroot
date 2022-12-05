@@ -32,6 +32,7 @@ apt install --no-install-recommends -y \
     gnome-shell-extension-desktop-icons-ng \
     gnome-shell-extension-ubuntu-dock \
     gnome-control-center \
+    libpam-gnome-keyring \
     xdg-desktop-portal \
     xdg-desktop-portal-gnome \
     xdg-desktop-portal-gtk
