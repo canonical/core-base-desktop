@@ -22,6 +22,7 @@ apt install --no-install-recommends -y \
     fonts-ubuntu \
     ubuntu-settings \
     xdg-user-dirs \
+    avahi-daemon \
     pipewire \
     wireplumber \
     pipewire-pulse \
