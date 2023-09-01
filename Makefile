@@ -42,6 +42,7 @@ install:
 
 	# create install-data for hooks
 	mkdir -p $(DESTDIR)/install-data
+	$(CRAFT_PROJECT_DIR)/generate-connections.py $(CRAFT_PROJECT_DIR)/snap-connections.txt $(DESTDIR)/usr/libexec/snap-connections.sh
 
 	set -eux;						\
 	export SNAP_BUILD_VARIANT="";				\

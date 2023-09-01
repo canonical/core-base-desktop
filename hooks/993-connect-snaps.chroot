@@ -1,0 +1,19 @@
+#!/bin/sh
+
+set -e
+
+if [ -f /usr/libexec/snap-connections.sh ]; then
+    cat >/etc/systemd/system/manual-plug-connection.service <<'EOF'
+[Unit]
+Description=Manually connect snap plugs.
+
+[Service]
+Type=simple
+Restart=no
+ExecStart=/usr/libexec/snap-connections.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl enable manual-plug-connection.service
+fi
