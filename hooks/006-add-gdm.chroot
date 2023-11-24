@@ -104,15 +104,45 @@ touch /var/lib/console-conf/complete
 # gnome-initial-setup uses AccountsService to create the user account.
 # AccountsService in turn calls /usr/sbin/adduser.  Replace that
 # script with a wrapper that adds the --extrausers argument.
-#
-# Unfortunately this does not work for the addusers call to add the
-# user to the sudo group.
+# The other user-management scripts need the same flag.
 mv /usr/sbin/adduser /usr/sbin/adduser.real
 cat <<\EOF > /usr/sbin/adduser
 #!/bin/sh
 exec /usr/sbin/adduser.real --extrausers "$@"
 EOF
 chmod a+x /usr/sbin/adduser
+
+mv /usr/sbin/usermod /usr/sbin/usermod.real
+cat <<\EOF > /usr/sbin/usermod
+#!/bin/sh
+exec /usr/sbin/usermod.real --extrausers "$@"
+EOF
+chmod a+x /usr/sbin/usermod
+
+mv /usr/sbin/userdel /usr/sbin/userdel.real
+cat <<\EOF /usr/sbin/userdel
+#!/bin/sh
+exec /usr/sbin/userdel.real --extrausers "$@"
+EOF
+chmod a+x /usr/sbin/userdel
+
+mv /usr/sbin/groupadd /usr/sbin/groupadd.real
+cat <<\EOF /usr/sbin/groupadd
+#!/bin/sh
+exec /usr/sbin/groupadd.real --extrausers "$@"
+EOF
+
+mv /usr/sbin/groupmod /usr/sbin/groupmod.real
+cat <<\EOF > /usr/sbin/groupmod
+#!/bin/sh
+exec /usr/sbin/groupmod.real --extrausers "$@"
+EOF
+
+mv /usr/sbin/groupdel /usr/sbin/groupdel.real
+cat <<\EOF > /usr/sbin/groupdel
+#!/bin/sh
+exec /usr/bin/groupdel.real --extrausers "$@"
+EOF
 
 # Force gsd-xsettings to use the regular DISPLAY connection. If it
 # tries to connect to :1, gnome-shell will not auto-start Xwayland.
