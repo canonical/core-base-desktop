@@ -56,7 +56,8 @@ apt install --no-install-recommends -y \
     xdg-desktop-portal-gnome \
     xdg-desktop-portal-gtk \
     xdg-user-dirs-gtk \
-    inotify-tools
+    inotify-tools \
+    alsa-ucm-conf
 
 # Remove setuid from some executables we're not using
 chmod u-s,g-s /usr/bin/pkexec
