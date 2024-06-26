@@ -126,6 +126,7 @@ rtkit:x:115:124:RealtimeKit,,,:/proc:/usr/sbin/nologin
 pipewire:x:116:125:Pipewire,,,:/proc:/usr/sbin/nologin
 polkitd:x:117:126:polkit:/nonexistent:/usr/sbin/nologin
 systemd-journal:x:118:106:Reserved:/run/systemd:/bin/false
+provd:x:119:127:Reserved:/run/provd:/bin/false
 EOF
 cp /etc/passwd /etc/passwd.orig # We make a copy for a later sanity-compare
 
@@ -236,6 +237,7 @@ colord:x:123:
 rtkit:x:124:
 pipewire:x:125:
 polkitd:x:126:
+provd:x:127:gnome-initial-setup
 EOF
 cp /etc/group /etc/group.orig # We make a copy for a later sanity-compare
 
@@ -305,5 +307,6 @@ colord:!::
 pipewire:!::
 rtkit:!::
 polkitd:!*::
+provd:!::gnome-initial-setup
 EOF
 cp /etc/gshadow /etc/gshadow.orig # We make a copy for a later sanity-compare

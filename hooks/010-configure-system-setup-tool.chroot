@@ -2,13 +2,43 @@
 
 set -e
 
-apt install --no-install-recommends -y gnome-initial-setup
+apt install --no-install-recommends -y gnome-initial-setup provd
 
-# Launch ubuntu-core-desktop-init instead of gnome-initial-setup
 mv /usr/share/applications/gnome-initial-setup.desktop /usr/share/applications/ubuntu-core-desktop-init.desktop
-sed -i 's#/usr/libexec/gnome-initial-setup#/snap/ubuntu-core-desktop-init/current/bin/ubuntu_init#g' /usr/share/applications/ubuntu-core-desktop-init.desktop
+sed -i 's#/usr/libexec/gnome-initial-setup#/usr/libexec/launch-desktop-provision-init#g' /usr/share/applications/ubuntu-core-desktop-init.desktop
 
 sed -i 's#gnome-initial-setup#ubuntu-core-desktop-init#g' /usr/share/gnome-session/sessions/gnome-initial-setup.session
+
+cat > /usr/libexec/launch-desktop-provision-init << EOF
+#!/bin/sh
+
+# Create the /run/gnome-initial-setup/desktop-provision directory
+mkdir -p /run/gnome-initial-setup/desktop-provision
+
+# Create the /run/gnome-initial-setup/.cache directory
+mkdir -p /run/gnome-initial-setup/.cache
+
+/usr/libexec/provd &
+until [ -S /run/gnome-initial-setup/desktop-provision/init.socket ]; do
+	sleep 1
+done
+
+env DBUS_SESSION_BUS_ADDRESS="unix:path=\$XDG_RUNTIME_DIR/bus" WAYLAND_DISPLAY=\$XDG_RUNTIME_DIR/wayland-0 DESKTOP_PROVISION_PATH=/usr/share/desktop-provision /snap/ubuntu-desktop-init/current/bin/ubuntu_init
+
+EOF
+
+mkdir -p /usr/share/desktop-provision
+
+cat > /usr/share/desktop-provision/whitelabel.yaml << EOF
+mode: core-desktop
+pages:
+  eula:
+    visible: false
+  ubuntu-pro-onboarding:
+    visible: false
+
+EOF
+
 
 # remove unneeded files to free space
 rm -f /usr/lib/systemd/user/gnome-session.target.wants/gnome-initial-setup-copy-worker.service

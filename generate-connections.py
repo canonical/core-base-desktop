@@ -33,6 +33,7 @@ while : ; do
                 continue
             snap_name = line[:line.find(":")]
             destination_data.write(f"""
+    echo Connecting {line}
     if /usr/bin/snap list {snap_name}; then
         if ! /usr/bin/snap connect {line}; then
             retval=1

@@ -68,7 +68,7 @@ EOF
 cat <<EOF >/etc/apt/preferences
 Package: *
 Pin: origin ""
-Pin-Priority: 1005
+Pin-Priority: 900
 
 Package: *
 Pin: release o=LP-PPA-desktop-snappers-core-desktop
@@ -100,7 +100,7 @@ ebrtrD1Hrw3BetRY4aQ0ysRSugvbTwqS0d17zepomYJS49Jy2w2D
 EOF
 
 # enable desktop-snappers PPA
-cat << \EOF > /etc/apt/trusted.gpg.d/desktop-snappers-core-desktop.asc
+cat << EOF > /etc/apt/trusted.gpg.d/desktop-snappers-core-desktop.asc
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 
 xsFNBF9y96cBEADYO8RUQ92fvHYzsJzQLzgFNHIDJcmbo/mtrhA66QaJtnplWDqm
