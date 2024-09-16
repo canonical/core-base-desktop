@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Ubuntu Education (confined)
+Comment=This session logs you into Ubuntu
+Exec=/snap/alliances-education-desktop-session/current/session-wrapper.sh
+TryExec=/snap/alliances-education-desktop-session/current/session-wrapper.sh
+Type=Application
+DesktopNames=ubuntu:GNOME
+X-GDM-SessionRegisters=true
