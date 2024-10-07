@@ -21,12 +21,16 @@ jobs:
           mkdir "${{ github.workspace }}"
       - uses: actions/checkout@v2
 
+      - name: Install spread
+        run: |
+          curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | sudo tar xzv -C /usr/bin
+          spread
       - name: Build snap
         run: |
-          spread -artifacts=./artifacts google-nested:tests/spread/build/
+          /usr/bin/spread -artifacts=./artifacts google-nested:tests/spread/build/
           find ./artifacts -type f -name "*.artifact" -exec cp {} "${{ github.workspace }}" \;
-      
-      - uses: actions/upload-artifact@v2
+
+      - uses: actions/upload-artifact@v4
         with:
           name: core-snap
           path: "${{ github.workspace }}/core22.artifact"
@@ -53,7 +57,7 @@ jobs:
         with:
           name: core-snap
           path: "${{ github.workspace }}/core22.artifact"
-      
+
       - name: Run tests
         run: |
           spread google-nested:tests/spread/main/
@@ -74,7 +78,7 @@ jobs:
         run: |
           rm -rf "${{ github.workspace }}"
           mkdir "${{ github.workspace }}"
-      
+
       - uses: actions/checkout@v2
         with:
           path: core-base
@@ -85,7 +89,7 @@ jobs:
       - uses: actions/download-artifact@v2
         with:
           name: core-snap
-      
+
       - name: Install spread
         run: curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | sudo tar xzv -C /usr/bin
 
@@ -112,7 +116,7 @@ jobs:
           start_snapd_core_vm '${{ github.workspace }}'
 
           cd snapd
-          
+
           # add any test suites that should be tested here
           SPREAD_EXTERNAL_ADDRESS=localhost:8022 spread external:ubuntu-core-22-64:tests/smoke/
 
