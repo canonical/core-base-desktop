@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Plasma (confined)
+Comment=This session logs you into KDE Plasma
+Exec=core-desktop-session-wrapper.sh plasma-desktop-session KDE
+TryExec=/snap/bin/plasma-desktop-session
+Type=Application
+DesktopNames=KDE
+X-GDM-SessionRegisters=true
