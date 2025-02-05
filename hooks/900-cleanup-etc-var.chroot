@@ -68,7 +68,7 @@ rmdir /var/log/private
 rm -rf /var/log/gdm3
 
 # clean leftovers from the build
-rm /var/log/*
+rm -rf /var/log/*
 
 # Re-enable journal
 mkdir /var/log/journal
