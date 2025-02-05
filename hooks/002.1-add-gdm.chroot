@@ -84,6 +84,8 @@ rm -f /usr/share/dbus-1/services/org.gnome.evolution.dataserver.*
 
 # Remove systemd activation in services managed by
 # ubuntu-desktop-session snap
+rm -f /usr/lib/systemd/user/pipewire*
+rm -f /usr/lib/systemd/user/wireplumber*
 rm -rf /etc/systemd/user/pipewire*
 rm -f /etc/systemd/user/sockets.target.wants/pipewire*
 rm -f /etc/systemd/user/default.target.wants/pipewire*
