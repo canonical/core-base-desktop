@@ -38,6 +38,26 @@ function fixup_xauthority() {
         fi
     done
 }
+if [ $session_type == "KDE" ]; then
+    # Temporary workaround until we can use the pipewire snap
+    ln -sf "snap.plasma-desktop-session" $XDG_RUNTIME_DIR/snap.pipewire
+
+    # Temporary workaround until we have a better way to expose our services and targets
+    # 1. Expose our targets, services and overloads
+    rm -rf $XDG_RUNTIME_DIR/systemd/user.control
+    mkdir -p $XDG_RUNTIME_DIR/systemd
+    ln -sf /snap/plasma-core24-desktop/current/usr/lib/systemd/user $XDG_RUNTIME_DIR/systemd/user.control
+    # 2. Reload the daemon so that it picks up our changes
+    systemctl --user daemon-reload
+    # 3. Stop anything now masked which might have been already started
+    masked_units=`systemctl --user show --property=Id --value --state=masked`
+    for unit in $masked_units ; do
+      systemctl --user stop $unit
+    done
+    # 4. Stop the xdg-desktop-portal in case it was started before the override was set
+    systemctl --user stop xdg-desktop-portal
+fi
+
 fixup_xauthority &
 
 # Symlink the Wayland socket from the snap's private directory
