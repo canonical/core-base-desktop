@@ -27,7 +27,11 @@ dbus-update-activation-environment --systemd DISPLAY=:0 WAYLAND_DISPLAY=wayland-
 function fixup_xauthority() {
     while :; do
         sleep 1s
-        xauth_file="$(ls -1t $XDG_RUNTIME_DIR/snap.$snap_name/.mutter-Xwaylandauth.* | head -n1)"
+        if [ $session_type == "KDE" ]; then
+            xauth_file="$(ls -1t $XDG_RUNTIME_DIR/snap.$snap_name/xauth_* | head -n1)"
+        else
+            xauth_file="$(ls -1t $XDG_RUNTIME_DIR/snap.$snap_name/.mutter-Xwaylandauth.* | head -n1)"
+        fi
         if [ -f "$xauth_file" ]; then
             cp "$xauth_file" $XDG_RUNTIME_DIR/.Xauthority
             return
