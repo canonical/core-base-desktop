@@ -4,4 +4,10 @@ set -e
 echo Removing pipewire
 # remove packages that were installed due to dependencies but that we
 # must remove.
-dpkg -r --force-all pipewire pipewire-bin wireplumber pipewire-pulse libspa-0.2-modules libpipewire-0.3-modules
+dpkg -r --force-all pipewire wireplumber pipewire-pulse
+
+# For pipewire-bin remove all the binaries but retain all the config from /usr/share which will
+# be used by clients and modules
+for i in $(dpkg -L pipewire-bin | grep -v "^/\.$" | grep -v "usr/share" | sed -E -e 's,^/,,' | tac) ; do
+    rm -df "$i" || /bin/true
+done
