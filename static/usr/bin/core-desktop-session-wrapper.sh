@@ -39,9 +39,6 @@ function fixup_xauthority() {
     done
 }
 if [ $session_type == "KDE" ]; then
-    # Temporary workaround until we can use the pipewire snap
-    ln -sf "snap.plasma-desktop-session" $XDG_RUNTIME_DIR/snap.pipewire
-
     # Temporary workaround until we have a better way to expose our services and targets
     # 1. Expose our targets, services and overloads
     rm -rf $XDG_RUNTIME_DIR/systemd/user.control
