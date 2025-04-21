@@ -11,3 +11,6 @@ dpkg -r --force-all pipewire wireplumber pipewire-pulse
 for i in $(dpkg -L pipewire-bin | grep -v "^/\.$" | grep -v "usr/share" | sed -E -e 's,^/,,' | tac) ; do
     rm -df "$i" || /bin/true
 done
+
+echo Removing upower
+dpkg -r --force-all upower
