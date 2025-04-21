@@ -1,13 +1,27 @@
 #!/bin/sh
 
 set -e
-echo Removing pipewire
 # remove packages that were installed due to dependencies but that we
 # must remove.
-dpkg -r --force-all pipewire wireplumber pipewire-pulse
+echo Removing pipewire
+dpkg -r --force-all pipewire wireplumber pipewire-pulse pipewire-alsa
 
 # For pipewire-bin remove all the binaries but retain all the config from /usr/share which will
 # be used by clients and modules
 for i in $(dpkg -L pipewire-bin | grep -v "^/\.$" | grep -v "usr/share" | sed -E -e 's,^/,,' | tac) ; do
     rm -df "$i" || /bin/true
 done
+
+# Remove accouts-service
+dpkg -r --force-all accountsservice
+
+echo Removing xdg-desktop-portal-XXX
+# Save the portal file
+cp /usr/share/xdg-desktop-portal/portals/gnome.portal.in /usr/share/xdg-desktop-portal/portals/gnome.portal.preserve
+dpkg -r --force-all xdg-desktop-portal-gtk xdg-desktop-portal-gnome
+# Now, restore the portal file
+mv /usr/share/xdg-desktop-portal/portals/gnome.portal.preserve /usr/share/xdg-desktop-portal/portals/gnome.portal
+
+# Remove all the gnome services to ensure that they don't interfere with the ones in the session snap
+rm -f /usr/share/dbus-1/services/org.gnome.*
+

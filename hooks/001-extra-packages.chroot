@@ -267,6 +267,7 @@ PACKAGES=(
     p11-kit-modules
     plymouth-label-ft
     polkitd
+    python3-dbus
     rfkill
     squashfs-tools
     sudo
@@ -283,6 +284,7 @@ PACKAGES=(
     xkb-data
     locales
     cracklib-runtime
+    python3-dbus
 )
 
 case "$(dpkg --print-architecture)" in
