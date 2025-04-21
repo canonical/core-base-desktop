@@ -28,33 +28,9 @@ apt-get install --no-install-recommends -y \
     gir1.2-gsound-1.0 \
     libcanberra-pulse \
     libsnapd-glib-2-1 \
-    ibus
-
-# Install a basic Ubuntu session
-apt-get install --no-install-recommends -y \
-    ubuntu-session \
-    gkbd-capplet \
-    gnome-menus \
-    gnome-terminal \
-    gnome-settings-daemon \
-    gnome-shell-extension-appindicator \
-    gnome-shell-extension-desktop-icons-ng \
-    gnome-shell-extension-ubuntu-dock \
-    gnome-shell-extension-ubuntu-tiling-assistant \
-    gnome-control-center \
-    gnome-keyring \
-    fprintd \
-    libpam-fprintd \
-    opensc \
-    bolt \
-    libpam-gnome-keyring \
-    spice-vdagent \
-    xdg-desktop-portal \
-    xdg-desktop-portal-gnome \
-    xdg-desktop-portal-gtk \
-    xdg-user-dirs-gtk \
-    inotify-tools \
-    alsa-ucm-conf
+    ibus \
+    pkexec \
+    xdg-desktop-portal
 
 # Remove setuid from some executables we're not using
 chmod u-s,g-s /usr/bin/pkexec
@@ -70,11 +46,11 @@ sed -i '/^Description=/ a # delay until snapd finishes seeding\nAfter=snapd.seed
 
 # Remove D-Bus service activation files provided by
 # ubuntu-desktop-session snap.
-rm /usr/share/dbus-1/services/org.gnome.Nautilus.service
-rm /usr/share/dbus-1/services/org.gnome.Terminal.service
-rm /usr/share/dbus-1/services/org.freedesktop.impl.portal.desktop.gnome.service
-rm /usr/share/dbus-1/services/org.freedesktop.impl.portal.desktop.gtk.service
-rm /usr/share/dbus-1/services/org.gnome.Shell.Screencast.service
+rm -f /usr/share/dbus-1/services/org.gnome.Nautilus.service
+rm -f /usr/share/dbus-1/services/org.gnome.Terminal.service
+rm -f /usr/share/dbus-1/services/org.freedesktop.impl.portal.desktop.gnome.service
+rm -f /usr/share/dbus-1/services/org.freedesktop.impl.portal.desktop.gtk.service
+rm -f /usr/share/dbus-1/services/org.gnome.Shell.Screencast.service
 rm -f /usr/share/dbus-1/services/org.freedesktop.IBus.service
 rm -f /usr/share/dbus-1/services/org.freedesktop.portal.IBus.service
 rm -f /usr/share/dbus-1/services/org.freedesktop.ColorHelper.service
@@ -120,7 +96,7 @@ sed -i "/^ReadWritePaths=/ a \\  /var/lib/extrausers/ \\\\" \
     /usr/lib/systemd/system/accounts-daemon.service
 
 # Hide gnome-terminal by default
-sed -i 's/OnlyShowIn=/NoDisplay=true\nOnlyShowIn=/g' /usr/share/applications/org.gnome.Terminal.desktop
+#sed -i 's/OnlyShowIn=/NoDisplay=true\nOnlyShowIn=/g' /usr/share/applications/org.gnome.Terminal.desktop
 
 # change default wallpapers
 cp /usr/share/gnome-background-properties/ubuntu-wallpapers.xml /usr/share/gnome-background-properties/ubuntu-core-desktop-wallpapers.xml
