@@ -73,7 +73,6 @@
 /etc/polkit-1/rules.d                   auto                    persistent  none        none
 /var/lib/AccountsService                auto                    persistent  transition  none
 /var/lib/gdm3                           auto                    persistent  transition  none
-/usr/share/wayland-sessions             auto                    persistent  transition  none
 /usr/share/polkit-1                     auto                    persistent  transition  none
 /var/lib/colord                         auto                    persistent  transition  none
 /var/lib/fprint                         auto                    persistent  transition  none
