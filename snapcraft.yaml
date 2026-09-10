@@ -665,6 +665,7 @@ parts:
     build-packages:
       - shellcheck
       - distro-info
+      - dconf-cli
     override-prime: |
       craftctl default
 

@@ -49,6 +49,11 @@ install:
 	# at snapcraft's stage step), so fix the symlink up here instead.
 	ln -sf ../xkeyboard-config-2 $(DESTDIR)/usr/share/X11/xkb
 
+	# generate dconf data for gnome-initial-setup (picked up by
+	# hooks/002.4-configure-system-setup-tool.chroot)
+	/usr/bin/dconf compile init-default.compiled $(CRAFT_PROJECT_DIR)/dconf-init-data
+	/bin/mv init-default.compiled $(DESTDIR)/
+
 	# create install-data for hooks
 	mkdir -p $(DESTDIR)/install-data
 	$(CRAFT_PROJECT_DIR)/generate-connections.py $(CRAFT_PROJECT_DIR)/snap-connections.txt $(DESTDIR)/usr/libexec/snap-connections.sh

@@ -1,0 +1,13 @@
+[org/gnome/desktop/background]
+picture-options="zoom"
+picture-uri="file:///usr/share/backgrounds/ubuntu-core-desktop-l.png"
+picture-uri-dark="file:///usr/share/backgrounds/ubuntu-core-desktop-d.png"
+
+# original default values obtained from https://gitlab.gnome.org/GNOME/gnome-initial-setup
+[org/gnome/desktop/a11y]
+always-show-universal-access-status=true
+
+[org/gnome/desktop/lockdown]
+disable-lock-screen=true
+disable-log-out=true
+disable-user-switching=true

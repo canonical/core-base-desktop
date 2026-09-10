@@ -102,6 +102,14 @@ mkdir -p /etc/writable/gdm3
 mv /etc/gdm3/custom.conf /etc/writable/gdm3/custom.conf
 ln -s ../writable/gdm3/custom.conf /etc/gdm3/custom.conf
 
+# gdm3's real .deb postinst normally creates its state directory
+# (/var/lib/gdm3, owned by the gdm user/group); stage-packages doesn't
+# run maintainer scripts, so it never gets created - do it here since
+# hooks-build/100-factory-files.build (item 10 of the rebase) expects
+# it to already exist.
+mkdir -p /var/lib/gdm3
+chown gdm:gdm /var/lib/gdm3
+
 # Disable gnome-shell systemd
 rm -f /usr/lib/systemd/user/org.gnome.Shell*
 
