@@ -10,7 +10,18 @@ for name in group gshadow passwd shadow subuid subgid; do
     touch /var/lib/extrausers/$name
 done
 
+# Make sure we include stubs for the admin groups accounts-daemon will
+# try to add new users to (controlled by the admin_group and
+# extra_admin_groups meson options).
+#
+# This skips over lpadmin, sambashare, libvirtd, and lxd, which aren't
+# defined in /etc/group.
 cat > /var/lib/extrausers/group <<EOF
+adm:x:4:
+cdrom:x:24:
+sudo:x:27:
+dip:x:30:
+plugdev:x:46:
 users:x:100:
 EOF
 
@@ -25,7 +36,7 @@ done
 
 # Enable libnss-extrusers
 sed -i 's/^passwd:.*files/\0 extrausers/' /etc/nsswitch.conf
-sed -i 's/^group:.*files/\0 extrausers/' /etc/nsswitch.conf
+sed -i 's/^group:.*files/\0 [SUCCESS=merge] extrausers/' /etc/nsswitch.conf
 sed -i 's/^shadow:.*files/\0 extrausers/' /etc/nsswitch.conf
 
 # verify pam_extrausers.so is available

@@ -118,6 +118,12 @@ tss:x:110:116:Reserved:/var/lib/tpm:/bin/false
 polkitd:x:111:120:polkit:/nonexistent:/usr/sbin/nologin
 dhcpcd:x:107:65534:DHCP Client Daemon,,,:/usr/libexec:/bin/false
 systemd-coredump:x:999:999:systemd Core Dumper:/:/usr/sbin/nologin
+gdm:x:200:200:Gnome Display Manager:/var/lib/gdm3:/bin/false
+gnome-initial-setup:x:201:65534::/run/gnome-initial-setup/:/bin/false
+colord:x:202:202:colord colour management daemon:/var/lib/colord:/usr/sbin/nologin
+geoclue:x:203:203::/var/lib/geoclue:/bin/false
+pipewire:x:204:204:Pipewire,,,:/proc:/usr/sbin/nologin
+rtkit:x:205:205:RealtimeKit,,,:/proc:/usr/sbin/nologin
 EOF
 # TODO: move dhcpcd to /usr/lib/dhcpcd once this lands in PPAs
 # https://salsa.debian.org/debian/dhcpcd/-/commit/ee5223785c94e54c711e5bd60755913b48dd1939
@@ -157,6 +163,12 @@ tss:*:16701:0:99999:7:::
 polkitd:!*:19690::::::
 dhcpcd:!:19835::::::
 systemd-coredump:!*:99999::::::
+gdm:*:18459:0:99999:7:::
+gnome-initial-setup:*:18495:0:99999:7:::
+colord:*:18495:0:99999:7:::
+geoclue:*:18459:0:99999:7:::
+pipewire:*:18495:0:99999:7:::
+rtkit:*:19390:0:99999:7:::
 EOF
 cp /etc/shadow /etc/shadow.orig # We make a copy for a later sanity-compare
 
@@ -222,6 +234,12 @@ polkitd:x:120:
 systemd-coredump:x:999:
 clock:x:998:
 dhcpcd:x:997:
+gdm:x:200:
+colord:x:202:
+geoclue:x:203:
+pipewire:x:204:
+rtkit:x:205:
+scanner:x:206:
 EOF
 cp /etc/group /etc/group.orig # We make a copy for a later sanity-compare
 
@@ -286,6 +304,12 @@ _ssh:!::
 polkitd:!*::
 systemd-coredump:!*::
 dhcpcd:!*::
+gdm:!::
+colord:!::
+geoclue:!::
+pipewire:!::
+rtkit:!::
+scanner:!::
 EOF
 cp /etc/gshadow /etc/gshadow.orig # We make a copy for a later sanity-compare
 
