@@ -33,10 +33,10 @@ ShowDelay=0
 DeviceTimeout=8
 EOF
 
-# Leave only the font used by ubuntu-core theme
-rm -rf /usr/share/fonts/truetype/dejavu/
-cp '/usr/share/fonts/truetype/ubuntu/Ubuntu[wdth,wght].ttf' /usr/share/fonts/Plymouth.ttf
-rm -rf /usr/share/fonts/truetype/ubuntu/
+# Symlink (rather than move) the variable font used by the ubuntu-core
+# theme, and keep the dejavu/ubuntu font directories intact, since
+# desktop apps still need them.
+ln -s '/usr/share/fonts/truetype/ubuntu/Ubuntu[wdth,wght].ttf' /usr/share/fonts/Plymouth.ttf
 
 # We pull by "Wants" instead, so these units are not run unless plymouth-start is
 rm /usr/lib/systemd/system/multi-user.target.wants/plymouth-quit-wait.service

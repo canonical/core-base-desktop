@@ -38,6 +38,12 @@ rmdir /var/log/private
 # slices which only ever left flat files here
 rm -rf /var/log/*
 
+# Re-enable the persistent journal for the desktop session (base
+# leaves it disabled/ephemeral; 005-initialize-systemd.chroot's own
+# creation of this directory doesn't survive the cleanup above).
+mkdir /var/log/journal
+chown root:systemd-journal /var/log/journal
+
 # no "local" on core
 # shellcheck disable=SC2114
 rm -rf -- /var/local /usr/local
