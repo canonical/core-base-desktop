@@ -1,0 +1,25 @@
+#!/bin/sh -x
+
+set -e
+# Download all the base locale languages and keep
+# only the Gtk and Gnome ones.
+
+ORIG_BASE_DIR="/usr/share/locale-langpack"
+DEST_BASE_DIR="/usr/share/locale"
+
+for PATH in "$ORIG_BASE_DIR"/*; do
+    LANG=$(/bin/basename "$PATH")
+    DESTINATION="$DEST_BASE_DIR"/"$LANG"/LC_MESSAGES/
+    /bin/mkdir -p "$DESTINATION"
+    for FILENAME in coreutils.mo ibus10.mo gtk40.mo gtk30.mo gnome-shell.mo gnome-control-center-2.0.mo gnome-desktop-3.0.mo gnome-initial-setup.mo gnome-menus-3.0.mo language-selector.mo xdg-desktop-portal-gnome.mo xdg-desktop-portal.mo ibus-chewing.mo nautilus.mo nautilus-share.mo gnome-terminal.mo gdm.mo xdg-user-dirs.mo xdg-user-dirs-gtk.mo; do
+        FULL_PATH="$PATH"/LC_MESSAGES/"$FILENAME"
+        if [ -f "$FULL_PATH" ]; then
+            /bin/cp -a "$FULL_PATH" "$DESTINATION"
+        fi
+    done
+done
+
+/bin/rm -rf "$ORIG_BASE_DIR"
+/bin/rm -rf /usr/share/doc/language-pack-*
+/bin/rm -rf /usr/share/help-langpack
+/bin/rm -rf /usr/share/gnome/help-langpack/synaptic

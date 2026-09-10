@@ -355,9 +355,9 @@ parts:
     #   - polkitd (polkitd_services slice)
     #   - opensc (opensc_bins slice)
     #   - fonts-ubuntu (fonts-ubuntu_all/_config slices)
-    #   - locales, locales-all (locales_standard slice for now - item 7
-    #     of the rebase plan reworks locale handling properly; revisit
-    #     there instead of duplicating effort here)
+    #   - locales, locales-all (locales_standard slice already covers
+    #     the i18n data/tools chisel needs; item 7's language packs are
+    #     staged separately by the locale-packages part below)
     after:
       - chisel-libs
     plugin: nil
@@ -496,6 +496,120 @@ parts:
     override-prime: |
       # No files from this step in prime
 
+  locale-packages:
+    # Packages for hooks/002.2-add-locales.chroot (pre-chisel: apt-get
+    # install -y '^language-pack-gnome-[a-z]+-base$', run directly in
+    # that hook). Snapcraft's stage-packages doesn't support apt's
+    # regex-based package selection, so the full set of
+    # language-pack-gnome-*-base packages (one per supported language)
+    # is enumerated explicitly here instead - this is the full,
+    # unabridged list from the noble/resolute archive.
+    #
+    # The hook itself only keeps a handful of .mo files per language
+    # (the ones GNOME/GTK components actually use) and discards the
+    # rest, so most of what's staged here is thrown away again at
+    # hook-run time - that's expected, it mirrors the original apt-get
+    # + hook-side pruning design exactly.
+    after:
+      - chisel-libs
+    plugin: nil
+    stage-packages:
+      - language-pack-gnome-af-base
+      - language-pack-gnome-am-base
+      - language-pack-gnome-an-base
+      - language-pack-gnome-ar-base
+      - language-pack-gnome-as-base
+      - language-pack-gnome-ast-base
+      - language-pack-gnome-az-base
+      - language-pack-gnome-be-base
+      - language-pack-gnome-bg-base
+      - language-pack-gnome-bn-base
+      - language-pack-gnome-br-base
+      - language-pack-gnome-bs-base
+      - language-pack-gnome-ca-base
+      - language-pack-gnome-ckb-base
+      - language-pack-gnome-crh-base
+      - language-pack-gnome-cs-base
+      - language-pack-gnome-cy-base
+      - language-pack-gnome-da-base
+      - language-pack-gnome-de-base
+      - language-pack-gnome-dz-base
+      - language-pack-gnome-el-base
+      - language-pack-gnome-en-base
+      - language-pack-gnome-eo-base
+      - language-pack-gnome-es-base
+      - language-pack-gnome-et-base
+      - language-pack-gnome-eu-base
+      - language-pack-gnome-fa-base
+      - language-pack-gnome-fi-base
+      - language-pack-gnome-fr-base
+      - language-pack-gnome-fur-base
+      - language-pack-gnome-gd-base
+      - language-pack-gnome-gl-base
+      - language-pack-gnome-gu-base
+      - language-pack-gnome-he-base
+      - language-pack-gnome-hi-base
+      - language-pack-gnome-hr-base
+      - language-pack-gnome-hu-base
+      - language-pack-gnome-id-base
+      - language-pack-gnome-is-base
+      - language-pack-gnome-it-base
+      - language-pack-gnome-ja-base
+      - language-pack-gnome-ka-base
+      - language-pack-gnome-kab-base
+      - language-pack-gnome-kk-base
+      - language-pack-gnome-km-base
+      - language-pack-gnome-kn-base
+      - language-pack-gnome-ko-base
+      - language-pack-gnome-ku-base
+      - language-pack-gnome-lt-base
+      - language-pack-gnome-lv-base
+      - language-pack-gnome-mk-base
+      - language-pack-gnome-ml-base
+      - language-pack-gnome-mr-base
+      - language-pack-gnome-ms-base
+      - language-pack-gnome-my-base
+      - language-pack-gnome-nb-base
+      - language-pack-gnome-nds-base
+      - language-pack-gnome-ne-base
+      - language-pack-gnome-nl-base
+      - language-pack-gnome-nn-base
+      - language-pack-gnome-oc-base
+      - language-pack-gnome-or-base
+      - language-pack-gnome-pa-base
+      - language-pack-gnome-pl-base
+      - language-pack-gnome-pt-base
+      - language-pack-gnome-ro-base
+      - language-pack-gnome-ru-base
+      - language-pack-gnome-si-base
+      - language-pack-gnome-sk-base
+      - language-pack-gnome-sl-base
+      - language-pack-gnome-sq-base
+      - language-pack-gnome-sr-base
+      - language-pack-gnome-sv-base
+      - language-pack-gnome-szl-base
+      - language-pack-gnome-ta-base
+      - language-pack-gnome-te-base
+      - language-pack-gnome-tg-base
+      - language-pack-gnome-th-base
+      - language-pack-gnome-tr-base
+      - language-pack-gnome-ug-base
+      - language-pack-gnome-uk-base
+      - language-pack-gnome-vi-base
+      - language-pack-gnome-xh-base
+      - language-pack-gnome-zh-hans-base
+      - language-pack-gnome-zh-hant-base
+    override-build: |
+      # See desktop-packages' override-build above for why this
+      # relocation is needed.
+      tmpdir="$(mktemp -d)"
+      mv "${CRAFT_PART_INSTALL}"/* "$tmpdir"/
+      mkdir -p "${CRAFT_PART_INSTALL}"/base
+      mv "$tmpdir"/* "${CRAFT_PART_INSTALL}"/base/
+      rmdir "$tmpdir"
+    override-prime: |
+      # No files from this step in prime
+
   snapd-files:
     plugin: nil
     source: .
@@ -542,6 +656,7 @@ parts:
       - gdm-packages
       - gnome-desktop-components
       - system-setup-tool-packages
+      - locale-packages
       - snapd-files
       - splash-theme
       - build-env
