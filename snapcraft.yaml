@@ -471,6 +471,31 @@ parts:
     override-prime: |
       # No files from this step in prime
 
+  system-setup-tool-packages:
+    # Packages for hooks/002.4-configure-system-setup-tool.chroot
+    # (pre-chisel: apt-get install --no-install-recommends -y
+    # gnome-initial-setup provd, run directly in that hook). We only
+    # want gnome-initial-setup for its theming/dconf-defaults data and
+    # provd for the whitelabel-configurable onboarding wizard; the
+    # actual "run at first login" behaviour is disabled/removed by the
+    # hook, in favour of the ubuntu-desktop-init snap.
+    after:
+      - chisel-libs
+    plugin: nil
+    stage-packages:
+      - gnome-initial-setup
+      - provd
+    override-build: |
+      # See desktop-packages' override-build above for why this
+      # relocation is needed.
+      tmpdir="$(mktemp -d)"
+      mv "${CRAFT_PART_INSTALL}"/* "$tmpdir"/
+      mkdir -p "${CRAFT_PART_INSTALL}"/base
+      mv "$tmpdir"/* "${CRAFT_PART_INSTALL}"/base/
+      rmdir "$tmpdir"
+    override-prime: |
+      # No files from this step in prime
+
   snapd-files:
     plugin: nil
     source: .
@@ -516,6 +541,7 @@ parts:
       - desktop-packages
       - gdm-packages
       - gnome-desktop-components
+      - system-setup-tool-packages
       - snapd-files
       - splash-theme
       - build-env

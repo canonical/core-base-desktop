@@ -1,0 +1,46 @@
+#!/bin/bash -x
+
+set -e
+
+# gnome-initial-setup and provd are staged via the
+# system-setup-tool-packages snapcraft part instead of apt-get here.
+
+# Configure provd
+mkdir -p /usr/share/desktop-provision
+cat > /usr/share/desktop-provision/whitelabel.yaml << \EOF
+mode: core-desktop
+pages:
+  accessibility:
+    # The a11y page is non-functional without sprovd. It's also not
+    # clear it placed settings in a place the ubuntu-desktop-session
+    # snap would see them.
+    visible: false
+  eula:
+    visible: false
+  ubuntu-pro-onboarding:
+    visible: false
+EOF
+
+# Running ubuntu-desktop-init from /run/gnome-initial-setup as $HOME
+# breaks, so run without confinement for now:
+sed -i 's#/snap/bin/ubuntu-desktop-init#DESKTOP_PROVISION_PATH=/usr/share/desktop-provision /snap/ubuntu-desktop-init/current/bin/ubuntu_init#' /usr/libexec/launch-desktop-provision-init
+
+# remove unneeded files to free space
+rm -f /usr/lib/systemd/user/gnome-session.target.wants/gnome-initial-setup-copy-worker.service
+rm -f /usr/lib/systemd/user/gnome-session.target.wants/gnome-initial-setup-first-login.service
+rm -f /usr/share/gnome-initial-setup/vendor.conf
+rm -rf /usr/share/doc/gnome-initial-setup
+rm -f /usr/libexec/gnome-initial-setup
+rm -f /usr/libexec/gnome-initial-setup-copy-worker
+rm -f /usr/lib/systemd/user/gnome-initial-setup-copy-worker.service
+rm -f /usr/lib/systemd/user/gnome-initial-setup-first-login.service
+rm -f /etc/xdg/autostart/gnome-initial-setup-copy-worker.desktop
+rm -f /etc/xdg/autostart/gnome-initial-setup-first-login.desktop
+
+# configure the Ubuntu theme colors for the initial session
+sed -i '2 i "stylesheetName": "Yaru/gnome-shell.css",' /usr/share/gnome-shell/modes/initial-setup.json
+sed -i '3 i "colorScheme": "prefer-light",' /usr/share/gnome-shell/modes/initial-setup.json
+sed -i '4 i "themeResourceName": "theme/Yaru/gnome-shell-theme.gresource",' /usr/share/gnome-shell/modes/initial-setup.json
+sed -i '5 i "iconsResourceName": "theme/Yaru/gnome-shell-icons.gresource",' /usr/share/gnome-shell/modes/initial-setup.json
+
+mv /init-default.compiled /usr/share/gnome-initial-setup/initial-setup-dconf-defaults
