@@ -54,6 +54,14 @@ dirs=(
     /var/log
     /var/snap
     /var/tmp
+
+    /var/lib/AccountsService
+    /var/lib/gdm3
+    /usr/share/wayland-sessions
+    /usr/share/polkit-1
+    /var/lib/colord
+    /var/lib/fprint
+    /etc/firefox
 )
 
 for dir in "${dirs[@]}"; do

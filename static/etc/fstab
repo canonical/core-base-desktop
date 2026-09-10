@@ -27,6 +27,14 @@
 /writable/system-data/etc/polkit-1/actions /etc/polkit-1/actions none bind,x-initrd.mount 0 0
 /writable/system-data/etc/motd.d /etc/motd.d none bind,x-initrd.mount 0 0
 /writable/system-data/etc/chrony /etc/chrony none bind,x-initrd.mount 0 0
+/writable/system-data/var/lib/AccountsService /var/lib/AccountsService none bind 0 0
+/writable/system-data/var/lib/gdm3 /var/lib/gdm3 none bind 0 0
+/writable/system-data/usr/share/wayland-sessions /usr/share/wayland-sessions none bind 0 0
+/writable/system-data/usr/share/polkit-1 /usr/share/polkit-1 none bind 0 0
+/writable/system-data/var/lib/colord /var/lib/colord none bind 0 0
+/writable/system-data/var/lib/fprint /var/lib/fprint none bind 0 0
+# Firefox policy
+/writable/system-data/etc/firefox /etc/firefox none bind,x-initrd.mount 0 0
 /run/mnt/ubuntu-seed /var/lib/snapd/seed none bind,ro 0 0
 
 /writable/user-data /home none bind 0 0
