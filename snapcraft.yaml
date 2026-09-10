@@ -1,4 +1,4 @@
-name: core26
+name: core26-desktop
 adopt-info: build-env
 summary: Runtime environment based on Ubuntu 26.04
 description: |
@@ -11,6 +11,25 @@ assumes:
   - snapd2.55.5
   # This is uncommented in our github builds for riscv64
   ## - isa-riscv64-rva23
+
+platforms:
+  amd64:
+  arm64:
+
+# NOTE: the old apt-based hooks (pre-chisel) enabled the desktop-snappers
+# PPA (core-desktop) here to get GDM/GNOME session packages. It's
+# deliberately NOT enabled yet: none of the packages this item adds
+# (im-config, libspa-0.2-bluetooth, xdg-utils, xkb-data) actually need
+# it, they're all in the regular resolute archive. Checked the PPA's real
+# published suites (http://ppa.launchpad.net/desktop-snappers/core-desktop
+# /ubuntu/dists/) - it only has focal/jammy/kinetic/mantic/noble, and its
+# "devel" alias is a stale pointer at noble from Sep 2024, never
+# rebuilt for resolute/core26. So pulling from it now would mean lacing a
+# resolute-based rootfs with noble-ABI binaries - a real compatibility
+# risk, not just a local-network limitation. Revisit this (add
+# package-repositories with a `suites: [noble]` pin like before, accepting
+# the mismatch, or find/request a resolute build) whichever later item
+# in this rebase first needs a package that's genuinely only in this PPA.
 
 parts:
   build-env:
@@ -285,6 +304,46 @@ parts:
     override-prime: |
       # No files from this step in prime
 
+  desktop-packages:
+    # Packages needed for GDM/GNOME session support that come from the
+    # regular Ubuntu archive (or the desktop-snappers PPA, once later
+    # commits add packages that actually need it) rather than as chisel
+    # slices - chisel-ubuntu-core has no slice definitions for desktop
+    # packages like these, so they're fetched as ordinary .debs via
+    # snapcraft's own stage-packages mechanism instead.
+    after:
+      - chisel-libs
+    plugin: nil
+    stage-packages:
+      - im-config
+      - libspa-0.2-bluetooth
+      - xdg-utils
+      - xkb-data
+    override-build: |
+      # stage-packages are already fetched and unpacked into
+      # CRAFT_PART_INSTALL at this point (in their normal filesystem
+      # layout, e.g. usr/bin/...). Relocate all of it under base/ so it
+      # merges with the chisel-libs part's own base/ output once staged -
+      # the hooks part's `cp -a $(CRAFT_STAGE)/base $(DESTDIR)` step only
+      # picks up the base/ subdirectory of the aggregate stage.
+      tmpdir="$(mktemp -d)"
+      mv "${CRAFT_PART_INSTALL}"/* "$tmpdir"/
+      mkdir -p "${CRAFT_PART_INSTALL}"/base
+      mv "$tmpdir"/* "${CRAFT_PART_INSTALL}"/base/
+      rmdir "$tmpdir"
+
+      # chisel-libs' libx11-data_xerrordb slice already pulls in
+      # xkeyboard-config-2 as a transitive dependency and creates this
+      # exact symlink itself (at the wrong depth - see the Makefile's
+      # `install` target for the real fix-up). Since it's already staged
+      # by chisel-libs with different content, drop our copy here to
+      # avoid a stage-time conflict; the rest of the real xkb-data
+      # package's content (which chisel's copy is missing a few files of)
+      # still gets staged normally.
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/X11/xkb
+    override-prime: |
+      # No files from this step in prime
+
   snapd-files:
     plugin: nil
     source: .
@@ -327,6 +386,7 @@ parts:
   hooks:
     after:
       - chisel-libs
+      - desktop-packages
       - snapd-files
       - splash-theme
       - build-env

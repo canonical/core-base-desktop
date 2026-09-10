@@ -40,6 +40,15 @@ install:
 		ln -sf bash $(DESTDIR)/bin/sh; \
 	fi
 
+	# chisel's libx11-data_xerrordb slice pulls in xkeyboard-config-2 as a
+	# transitive dependency and creates this symlink at the wrong depth
+	# (../share/xkeyboard-config-2, which doesn't resolve), instead of the
+	# real xkb-data package's ../xkeyboard-config-2. The desktop-packages
+	# part ships the rest of the real xkb-data package's content (it can't
+	# ship this one file too - it would conflict with chisel-libs' copy
+	# at snapcraft's stage step), so fix the symlink up here instead.
+	ln -sf ../xkeyboard-config-2 $(DESTDIR)/usr/share/X11/xkb
+
 	# create install-data for hooks
 	mkdir -p $(DESTDIR)/install-data
 	$(CRAFT_PROJECT_DIR)/generate-connections.py $(CRAFT_PROJECT_DIR)/snap-connections.txt $(DESTDIR)/usr/libexec/snap-connections.sh

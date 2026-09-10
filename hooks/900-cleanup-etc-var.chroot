@@ -32,8 +32,11 @@ rm -rf /var/log/journal
 # systemd-tmpfiles creates this new dir now
 rmdir /var/log/private
 
-# clean leftovers from the build
-rm /var/log/*
+# clean leftovers from the build - use -rf since real (non-chisel)
+# package installation via stage-packages (e.g. the desktop-packages
+# part) creates a genuine /var/log/apt/ directory, unlike pure chisel
+# slices which only ever left flat files here
+rm -rf /var/log/*
 
 # no "local" on core
 # shellcheck disable=SC2114
