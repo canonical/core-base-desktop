@@ -8,6 +8,8 @@ VERSION="26"
 ID=ubuntu-core
 PRETTY_NAME="Ubuntu Core 26"
 VERSION_ID="26"
-HOME_URL="https://snapcraft.io/"
+VARIANT_ID=desktop
+VARIANT="Desktop"
+HOME_URL="https://www.ubuntu.com/core"
 BUG_REPORT_URL="https://bugs.launchpad.net/snapd/"
 EOF
