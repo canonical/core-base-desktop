@@ -1,0 +1,27 @@
+#!/bin/bash -ex
+
+# Add script to run when opening terminal to ssh localhost
+cat >/usr/bin/admin-console<<EOF
+#!/bin/bash
+
+ssh -aXq -o PubkeyAuthentication=no -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no localhost
+EOF
+
+chmod a+x /usr/bin/admin-console
+
+# Create desktop entry for Console
+cat >/usr/share/applications/admin-console.desktop<<EOF
+[Desktop Entry]
+Name=Console
+Comment=Console
+Keywords=console;shell;prompt;command;commandline;cmd;
+Exec=gnome-terminal -- /usr/bin/admin-console
+Icon=org.gnome.Terminal
+Type=Application
+Categories=System;
+StartupNotify=true
+StartupWMClass=AdminConsole
+SingleMainWindow=false
+OnlyShowIn=GNOME;
+X-Ubuntu-Gettext-Domain=gnome-terminal
+EOF
