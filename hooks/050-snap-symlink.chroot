@@ -13,3 +13,6 @@ ln -s /snap/snapd/current/etc/profile.d/apps-bin-path.sh /etc/profile.d/apps-bin
 
 echo "Creating the symlink snap's user services' environment configuration"
 ln -s /snap/snapd/current/usr/lib/environment.d/990-snapd.conf /usr/lib/environment.d/990-snapd.conf
+
+echo "Creating snap polkit policy symlink"
+ln -s /snap/snapd/current/usr/share/polkit-1/actions/io.snapcraft.snapd.policy /usr/share/polkit-1/actions/io.snapcraft.snapd.policy
