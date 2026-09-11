@@ -113,8 +113,21 @@ ln -s ../writable/gdm3/custom.conf /etc/gdm3/custom.conf
 mkdir -p /var/lib/gdm3
 chown gdm:gdm /var/lib/gdm3
 
-# Disable gnome-shell systemd
-rm -f /usr/lib/systemd/user/org.gnome.Shell*
+# NOTE: we used to unconditionally remove the org.gnome.Shell* systemd
+# --user unit templates here ("Disable gnome-shell systemd"). That was
+# carried over from the noble/24.04 setup, where gnome-session ran with
+# the (Ubuntu-only) --builtin patch and never used systemd --user D-Bus
+# activation at all, so these units were pure dead weight there. On
+# resolute, gnome-session no longer has a --builtin mode -- systemd --user
+# is mandatory -- and GDM's own shipped drop-in
+# (gnome-session@gnome-login.target.d/gnome-login.session.conf) declares
+# Requires=org.gnome.Shell@gdm.service for the *greeter* session (which
+# runs on the host as the gdm user, separate from the confined
+# ubuntu-desktop-session snap that provides the actual logged-in user's
+# gnome-shell). Deleting the unit here left that Requires= dangling,
+# which is why GDM could never register a graphical session (see
+# todo-gnome-session.txt for the full investigation). Do not remove these
+# units.
 
 # Stop "gnome-language-selector" showing in the Dash
 rm -f /usr/share/applications/gnome-language-selector.desktop

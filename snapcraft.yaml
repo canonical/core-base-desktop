@@ -301,6 +301,38 @@ parts:
       # this is zstd compressed, and must therefor be uncompressed
       # unzstd ./manifest.wall -o manifest.json
 
+      # We cut both coreutils-from-uutils_bins and gnu-coreutils_bins
+      # above (see the UTILS array) - Ubuntu 26.04 defaults to the
+      # uutils (Rust) coreutils reimplementation for the plain utility
+      # names (install, chmod, mkdir, ...), with the real GNU binaries
+      # only available under a gnu-prefixed name (gnuinstall, gnuchmod,
+      # gnumkdir, ...) to avoid a filename clash between the two
+      # slices. Unlike GNU coreutils, uutils' `install -d`
+      # unconditionally chmod()s the target directory even when it
+      # already exists, which fails with EROFS on paths that are still
+      # part of the read-only base squashfs at boot (e.g. gdm3's
+      # ExecStartPre calls `install -d /var/lib`, breaking gdm.service
+      # on every boot - see todo-gnome-session.txt for the original
+      # investigation). Repoint every plain utility name that has a
+      # gnu-prefixed counterpart at that GNU binary instead, matching
+      # the behaviour the rest of the image (and the
+      # writable-paths/fstab bind-mount design) assumes.
+      rootfs="${CRAFT_PART_INSTALL}"/base
+      for gnu_bin in "$rootfs"/usr/bin/gnu*; do
+        [ -e "$gnu_bin" ] || continue
+        name="$(basename "$gnu_bin")"
+        plain="${name#gnu}"
+        target="$rootfs/usr/bin/$plain"
+        if [ -L "$target" ] || [ -e "$target" ]; then
+          rm -f "$target"
+          ln -s "$name" "$target"
+        fi
+      done
+      if [ "$(readlink "$rootfs/usr/bin/install")" != "gnuinstall" ]; then
+        echo "coreutils switch to GNU did not take effect for install" >&2
+        exit 1
+      fi
+
     override-prime: |
       # No files from this step in prime
 
