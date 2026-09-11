@@ -44,8 +44,11 @@ rm -f /usr/share/dbus-1/services/org.gnome.evolution.dataserver.*
 
 # Remove systemd activation in services managed by
 # ubuntu-desktop-session snap
-rm -f /usr/lib/systemd/user/pipewire*
-rm -f /usr/lib/systemd/user/wireplumber*
+#
+# (pipewire/wireplumber's own systemd units aren't staged here at all
+# any more - item 13 of the rebase stops bundling those packages in the
+# base image entirely, see gdm-packages' snapcraft.yaml comment - so
+# there's nothing left to remove for them specifically.)
 rm -rf /etc/systemd/user/pipewire*
 rm -f /etc/systemd/user/sockets.target.wants/pipewire*
 rm -f /etc/systemd/user/default.target.wants/pipewire*

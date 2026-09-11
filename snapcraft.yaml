@@ -347,7 +347,16 @@ parts:
   gdm-packages:
     # First half of the original apt-get-in-a-hook package list from
     # hooks/002.1-add-gdm.chroot (pre-chisel): GDM itself, Xwayland, audio
-    # (pipewire/pulseaudio-utils), gsound, ibus, and the Yaru theme.
+    # (pulseaudio-utils/alsa-utils), gsound, ibus, and the Yaru theme.
+    #
+    # Stop bundling pipewire/wireplumber/pipewire-pulse in the base
+    # image (item 13 of the rebase): sessions bring their own PipeWire
+    # via the pipewire content snap now, and
+    # static/usr/bin/core-desktop-session-wrapper.sh symlinks the
+    # session's PipeWire/PulseAudio sockets from that snap instead of
+    # the desktop session snap. Only pipewire-bin's /usr/share config is
+    # kept (see below), since clients like xdg-desktop-portal still read
+    # it directly for screensharing.
     #
     # Left out on purpose because chisel-libs already slices them (see the
     # SLICES array above) - staging the full .deb here would duplicate/
@@ -371,16 +380,21 @@ parts:
       - yaru-theme-icon
       - ubuntu-settings
       - xdg-user-dirs
-      - pipewire
-      - wireplumber
-      - pipewire-pulse
       - pulseaudio-utils
+      - alsa-utils
       - libgsound0
       - gsound-tools
       - gir1.2-gsound-1.0
       - libcanberra-pulse
       - libsnapd-glib-2-1
       - ibus
+      # pipewire-bin's /usr/share config (needed by clients such as
+      # xdg-desktop-portal for screensharing) - everything else from
+      # it is stripped below, since sessions bring their own PipeWire
+      # server/client daemons via snap (see the "Stop bundling..."
+      # comment below for why pipewire/wireplumber/pipewire-pulse
+      # themselves aren't staged here at all).
+      - pipewire-bin
       # No chisel slice for this; needed at hook-run time for
       # glib-compile-schemas (used to rebuild the schema cache after the
       # wallpaper-default sed edits below). libglib2.0-bin's own
@@ -415,6 +429,51 @@ parts:
       rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/python3.14/test/regrtest.py
       rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/python3.14/test/support/smtpd.py
       rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/python3/py3versions.py
+
+      # pipewire-bin: keep only its /usr/share config (still needed by
+      # clients such as xdg-desktop-portal for screensharing), strip
+      # everything else - the actual PipeWire server/client binaries
+      # come from the pipewire content snap at runtime instead.
+      #
+      # pipewire/wireplumber/pipewire-pulse themselves aren't in
+      # stage-packages above at all, but gnome-settings-daemon
+      # (Recommends: pipewire-audio -> Depends: pipewire-pulse,
+      # wireplumber) and similar transitive pulls from other packages in
+      # this part still stage some of their files despite that - unlike
+      # apt-get, snapcraft has no dpkg here to `dpkg -r --force-all`
+      # them back out with (the original pre-chisel hook's approach), so
+      # explicitly strip every file the real .debs for those three
+      # packages ship, mirroring what a full package removal would have
+      # done.
+      find "${CRAFT_PART_INSTALL}"/base/usr/bin -maxdepth 1 \
+        \( -name 'pipewire*' -o -name 'pw-*' -o -name 'spa-*' \
+           -o -name 'wireplumber' -o -name 'wpctl' -o -name 'wpexec' \) \
+        -exec rm -f {} +
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/user/pipewire*
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/user/wireplumber*
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/sysusers.d/pipewire.conf
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/wireplumber
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/doc/pipewire
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/doc/pipewire-pulse
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/doc/wireplumber
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/apport/package-hooks/source_pipewire.py
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/glib-2.0/schemas/org.freedesktop.pulseaudio.gschema.xml
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/lintian/overrides/wireplumber
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/lintian/overrides/pipewire-pulse
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/man/man1/pipewire-pulse.1.gz
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/bash-completion/completions/wpctl
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/zsh/vendor-completions/_wpctl
+      # These are daemon-side plugin modules (loaded only by the
+      # pipewire/wireplumber daemons we just removed above) and the
+      # wireplumber library itself (only used by that daemon and its Lua
+      # scripts, unlike libpipewire-0.3.so which client apps link
+      # against directly) - dead weight without the daemon, so drop
+      # them too. Client-facing pieces (libpipewire-0.3.so, the
+      # gstreamer/ALSA PipeWire plugins) are kept since apps still need
+      # them to talk to the content-snap's PipeWire daemon.
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/lib/*/wireplumber-0.5
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/*/libwireplumber-0.5.so*
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/lib/*/pipewire-0.3
     override-prime: |
       # No files from this step in prime
 
@@ -468,6 +527,42 @@ parts:
       rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/python3.14/test/regrtest.py
       rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/python3.14/test/support/smtpd.py
       rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/python3/py3versions.py
+
+      # This part transitively pulls in pipewire/wireplumber/
+      # pipewire-pulse too (gnome-settings-daemon recommends
+      # pipewire-audio, which depends on both) even though none of them
+      # are declared in stage-packages above - same reasoning and same
+      # cleanup as gdm-packages' override-build for item 13 of the
+      # rebase: sessions bring their own PipeWire via snap instead. Note
+      # pipewire-bin isn't staged by this part at all, so unlike
+      # gdm-packages there's no /usr/share content to keep here - strip
+      # everything these three packages ship.
+      find "${CRAFT_PART_INSTALL}"/base/usr/bin -maxdepth 1 \
+        \( -name 'pipewire*' -o -name 'pw-*' -o -name 'spa-*' \
+           -o -name 'wireplumber' -o -name 'wpctl' -o -name 'wpexec' \) \
+        -exec rm -f {} +
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/user/pipewire*
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/user/wireplumber*
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/sysusers.d/pipewire.conf
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/wireplumber
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/pipewire
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/doc/pipewire
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/doc/pipewire-pulse
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/doc/wireplumber
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/apport/package-hooks/source_pipewire.py
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/glib-2.0/schemas/org.freedesktop.pulseaudio.gschema.xml
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/lintian/overrides/wireplumber
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/lintian/overrides/pipewire-pulse
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/man/man1/pipewire-pulse.1.gz
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/bash-completion/completions/wpctl
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/zsh/vendor-completions/_wpctl
+      # Daemon-side plugin modules and the wireplumber library itself -
+      # see gdm-packages' override-build above for why these are dead
+      # weight without the daemon binaries, and why the client-facing
+      # libpipewire-0.3.so/gstreamer/ALSA plugins are kept instead.
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/lib/*/wireplumber-0.5
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/*/libwireplumber-0.5.so*
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/lib/*/pipewire-0.3
     override-prime: |
       # No files from this step in prime
 
@@ -493,6 +588,40 @@ parts:
       mkdir -p "${CRAFT_PART_INSTALL}"/base
       mv "$tmpdir"/* "${CRAFT_PART_INSTALL}"/base/
       rmdir "$tmpdir"
+
+      # gnome-initial-setup depends on gnome-shell (for its wizard UI),
+      # which hard-depends on gstreamer1.0-pipewire -> pipewire, and
+      # something in that chain also pulls in wireplumber - same
+      # reasoning and cleanup as gdm-packages/gnome-desktop-components'
+      # override-build for item 13 of the rebase: sessions bring their
+      # own PipeWire via snap instead. No pipewire-bin here either, so
+      # strip everything these packages ship.
+      find "${CRAFT_PART_INSTALL}"/base/usr/bin -maxdepth 1 \
+        \( -name 'pipewire*' -o -name 'pw-*' -o -name 'spa-*' \
+           -o -name 'wireplumber' -o -name 'wpctl' -o -name 'wpexec' \) \
+        -exec rm -f {} +
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/user/pipewire*
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/user/wireplumber*
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/sysusers.d/pipewire.conf
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/wireplumber
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/pipewire
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/doc/pipewire
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/doc/pipewire-pulse
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/doc/wireplumber
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/apport/package-hooks/source_pipewire.py
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/glib-2.0/schemas/org.freedesktop.pulseaudio.gschema.xml
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/lintian/overrides/wireplumber
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/lintian/overrides/pipewire-pulse
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/man/man1/pipewire-pulse.1.gz
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/bash-completion/completions/wpctl
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/zsh/vendor-completions/_wpctl
+      # Daemon-side plugin modules and the wireplumber library itself -
+      # see gdm-packages' override-build above for why these are dead
+      # weight without the daemon binaries, and why the client-facing
+      # libpipewire-0.3.so/gstreamer/ALSA plugins are kept instead.
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/lib/*/wireplumber-0.5
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/*/libwireplumber-0.5.so*
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/lib/*/pipewire-0.3
     override-prime: |
       # No files from this step in prime
 
