@@ -74,6 +74,18 @@ while read line; do
               ;;
               /writable/system-data/var/snap)
               ;;
+              /writable/system-data/var/lib/AccountsService)
+              ;;
+              /writable/system-data/var/lib/gdm3)
+              ;;
+              /writable/system-data/usr/share/wayland-sessions)
+              ;;
+              /writable/system-data/usr/share/polkit-1)
+              ;;
+              /writable/system-data/var/lib/colord)
+              ;;
+              /writable/system-data/var/lib/fprint)
+              ;;
               *)
                 if [ "${initrd:+set}" = set ]; then
                   echo "Files outside /etc should not be mounted in initrd: $1" 1>&2
