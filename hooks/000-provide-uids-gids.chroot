@@ -241,6 +241,7 @@ pipewire:x:204:
 rtkit:x:205:
 scanner:x:206:
 provd:x:207:gnome-initial-setup
+gnome-initial-setup:x:996:
 EOF
 cp /etc/group /etc/group.orig # We make a copy for a later sanity-compare
 
@@ -312,6 +313,7 @@ pipewire:!::
 rtkit:!::
 scanner:!::
 provd:!::gnome-initial-setup
+gnome-initial-setup:!*::
 EOF
 cp /etc/gshadow /etc/gshadow.orig # We make a copy for a later sanity-compare
 
