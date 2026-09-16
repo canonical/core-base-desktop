@@ -77,6 +77,23 @@ sed -i 's/^#USE_EXTRAUSERS=.*$/USE_EXTRAUSERS=1/' /etc/adduser.conf
 # to see it - see hooks/013-setup-extrausers.chroot, which sets this up
 # alongside the "extrausers" entries, for why and in what order.
 
+# gnome-shell --mode=gdm loads its greeter theme/icons from
+# /usr/share/gnome-shell/gdm-theme.gresource and gdm-icons.gresource.
+# On a real .deb install these are update-alternatives symlinks:
+# gnome-shell-common's postinst registers them (priority 10, pointing at
+# the plain gnome-shell-theme/icons.gresource), and yaru-theme-gnome-shell's
+# postinst registers a higher-priority (15) alternative pointing at the
+# Yaru variants under theme/Yaru/. Chisel never runs any postinst, so
+# neither symlink (nor /etc/alternatives/gdm-theme.gresource) ever gets
+# created, and gnome-shell crashes on startup with "Failed to open file
+# gdm-theme.gresource: No such file or directory" - GDM then retries and
+# gives up ("Session never registered, failing"). Recreate what the
+# higher-priority (Yaru) alternative would have set up.
+ln -sf theme/Yaru/gnome-shell-theme.gresource \
+    /usr/share/gnome-shell/gdm-theme.gresource
+ln -sf theme/Yaru/gnome-shell-icons.gresource \
+    /usr/share/gnome-shell/gdm-icons.gresource
+
 # Force gsd-xsettings to use the regular DISPLAY connection. If it
 # tries to connect to :1, gnome-shell will not auto-start Xwayland.
 mv /usr/libexec/gsd-xsettings /usr/libexec/gsd-xsettings.real
