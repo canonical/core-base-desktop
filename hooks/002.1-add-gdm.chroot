@@ -62,7 +62,6 @@ rm -f /usr/lib/systemd/user/colord-session.service
 # reliably get rid of it with Conflicts/After
 mkdir /var/lib/console-conf
 touch /var/lib/console-conf/complete
-
 # gnome-initial-setup uses AccountsService to create the user account.
 # AccountsService in turn calls /usr/sbin/adduser.  So configure
 # adduser to add users to the "extrausers" database.

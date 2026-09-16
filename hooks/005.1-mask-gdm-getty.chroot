@@ -1,0 +1,11 @@
+#!/bin/sh -x
+
+set -e
+
+# GDM owns tty1 on the desktop image. The stock getty unit has
+# Restart=always, so it can reclaim tty1 during a greeter retry without
+# re-evaluating gdm.service's Conflicts=getty@tty1.service. Keep the
+# serial console on ttyS0 for recovery instead of allowing a virtual
+# console getty to race the display manager.
+mkdir -p /etc/systemd/system
+ln -sfn /dev/null /etc/systemd/system/getty@tty1.service
