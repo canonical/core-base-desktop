@@ -841,14 +841,7 @@ parts:
     # to get the current commit
     source: .
     build-packages:
-      - python3-debian
-      - python3-requests
       - python3-yaml
-    # to generate changelogs, it's own snap need to be present
-    # TODO: maybe we can override pull and just copy the files we need into
-    # the source dir.
-    build-snaps:
-      - core26/beta
     override-build: |
       cd ${CRAFT_PART_SRC}
 
@@ -857,20 +850,23 @@ parts:
       mkdir -p "${CRAFT_PART_INSTALL}/usr/share/snappy"
       python3 ./tools/wall2dpkg.py "${CRAFT_STAGE}/var/lib/chisel/manifest.wall" "${CRAFT_PART_INSTALL}/usr/share/snappy/dpkg.yaml"
 
-      # When building through spread there is no .git, which means we cannot
-      # generate the changelog in this case, ensure that the current folder is
-      # a git repository, additionally check that the snap we are building a changelog
-      # against has the dpkg.yaml.
-      if git rev-parse HEAD && [ -e "/snap/core26/current/usr/share/snappy/dpkg.yaml" ]; then
-        CHG_PARAMS=
-        if [ -e /build/core26 ]; then
-          CHG_PARAMS=--launchpad
-        fi
-        mkdir -p "${CRAFT_PART_INSTALL}/usr/share/doc"
-        ./tools/generate-changelog.py "/snap/core26/current" "${CRAFT_PART_INSTALL}" core26 $CHG_PARAMS
-      else
-        echo "WARNING: changelog will not be generated for this build"
-      fi
+      # Package-level changelog generation (tools/generate-changelog.py) is
+      # disabled here. It works by diffing this image's package manifest
+      # against core26's currently-published manifest, and for every
+      # package whose version differs, pulling in that package's own
+      # upstream changelog - but only for packages explicitly whitelisted,
+      # since it has no local copy of any package's changelog to fall back
+      # on (chisel doesn't ship doc slices) and downloading one for every
+      # differing package on every build isn't desirable. This desktop
+      # image pulls in a whole additional package stack on top of core26,
+      # so there's nothing meaningfully different about the handful of
+      # packages that happen to trip this today (e.g. netplan, polkit)
+      # versus the hundreds of others that don't - whitelisting them isn't
+      # justified. This is expected to go away once the desktop-specific
+      # packages move out of this base into separate snaps built on top
+      # of plain core26, at which point core26's own changelog generation
+      # applies unmodified again.
+      echo "WARNING: changelog generation is disabled for this build"
 
   publish-artifacts-lp:
     after:
@@ -882,5 +878,9 @@ parts:
         DATEFMT="$(date +%Y%m%d%H%M)"
         /bin/cp ${CRAFT_PRIME}/usr/share/snappy/dpkg.yaml /build/core26/core26-$(DATEFMT)_${CRAFT_ARCH_BUILD_FOR}.dpkg.yaml
         /bin/cp ${CRAFT_PRIME}/var/lib/chisel/manifest.wall /build/core26/core26-$(DATEFMT)_${CRAFT_ARCH_BUILD_FOR}.manifest.wall
-        /bin/cp ${CRAFT_PRIME}/usr/share/doc/ChangeLog /build/core26/core26-$(DATEFMT)_${CRAFT_ARCH_BUILD_FOR}.ChangeLog
+        # changelog generation is disabled (see generate-changelog part), so
+        # ChangeLog is never present here - only copy it if it exists.
+        if [ -e ${CRAFT_PRIME}/usr/share/doc/ChangeLog ]; then
+          /bin/cp ${CRAFT_PRIME}/usr/share/doc/ChangeLog /build/core26/core26-$(DATEFMT)_${CRAFT_ARCH_BUILD_FOR}.ChangeLog
+        fi
       fi
