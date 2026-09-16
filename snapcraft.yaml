@@ -364,15 +364,16 @@ parts:
       mv "$tmpdir"/* "${CRAFT_PART_INSTALL}"/base/
       rmdir "$tmpdir"
 
-      # chisel-libs' libx11-data_xerrordb slice already pulls in
-      # xkeyboard-config-2 as a transitive dependency and creates this
-      # exact symlink itself (at the wrong depth - see the Makefile's
-      # `install` target for the real fix-up). Since it's already staged
-      # by chisel-libs with different content, drop our copy here to
-      # avoid a stage-time conflict; the rest of the real xkb-data
-      # package's content (which chisel's copy is missing a few files of)
-      # still gets staged normally.
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/X11/xkb
+      # chisel-libs (this part's declared "after" dependency, already
+      # staged into ${CRAFT_STAGE} by this point) can ship files under
+      # the same path as a package staged here - e.g. its
+      # libx11-data_xerrordb slice already pulls in xkeyboard-config-2
+      # as a transitive dependency and creates usr/share/X11/xkb itself
+      # (at the wrong depth - see the Makefile's `install` target for
+      # the real fix-up), which conflicts with xkb-data's own copy
+      # above. See tools/resolve-base-conflicts.sh for how this (and
+      # any other part/chisel-libs overlap) is resolved generically.
+      "${CRAFT_PROJECT_DIR}"/tools/resolve-base-conflicts.sh "${CRAFT_PART_INSTALL}"/base
     override-prime: |
       # No files from this step in prime
 
@@ -447,20 +448,27 @@ parts:
       mv "$tmpdir"/* "${CRAFT_PART_INSTALL}"/base/
       rmdir "$tmpdir"
 
-      # One of these packages (gdm3, most likely, for its config-time
-      # scripts) transitively pulls in python3 as a stage-package
-      # dependency, which chisel-libs already provides as chisel slices
-      # (needed by tools/generate-connections.py, see item 1 of the
-      # rebase). The two copies have different permissions/content for
-      # these interpreter/stdlib files, causing a hard stage-time
-      # conflict; drop our copy and rely on chisel-libs' own python3
-      # slices instead.
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/bin/py3clean
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/bin/py3compile
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/python3.14/encodings/rot_13.py
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/python3.14/test/regrtest.py
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/python3.14/test/support/smtpd.py
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/python3/py3versions.py
+      # chisel-libs (this part's declared "after" dependency, already
+      # staged into ${CRAFT_STAGE} by this point) can ship files under
+      # the same path as a package staged here - e.g. gdm3 (most
+      # likely, for its config-time scripts) transitively pulls in
+      # python3 as a stage-package dependency, which chisel-libs
+      # already provides as chisel slices (needed by
+      # tools/generate-connections.py, see item 1 of the rebase). See
+      # tools/resolve-base-conflicts.sh for how this (and any other
+      # part/chisel-libs overlap) is resolved generically.
+      "${CRAFT_PROJECT_DIR}"/tools/resolve-base-conflicts.sh "${CRAFT_PART_INSTALL}"/base
+
+      # systemd (pulled in transitively, same as usr/sbin/halt et al.
+      # above) ships the motd-news "Ubuntu Pro/news" ad banner timer -
+      # Ubuntu Core has never wanted this (see
+      # hook-tests/016-set-motd.test), so strip it outright rather than
+      # relying on it happening to be absent from whichever package
+      # transitively pulls it in.
+      rm -f "${CRAFT_PART_INSTALL}"/base/etc/default/motd-news
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/system/motd-news.service
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/system/motd-news.timer
+      rm -f "${CRAFT_PART_INSTALL}"/base/etc/update-motd.d/50-motd-news
 
       # pipewire-bin: keep only its /usr/share config (still needed by
       # clients such as xdg-desktop-portal for screensharing), strip
@@ -552,13 +560,17 @@ parts:
 
       # Same python3 stage-vs-chisel conflict as gdm-packages above (one
       # of gnome-control-center/gnome-terminal/fprintd's dependencies
-      # pulls in python3.14-minimal); drop our copy.
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/bin/py3clean
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/bin/py3compile
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/python3.14/encodings/rot_13.py
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/python3.14/test/regrtest.py
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/python3.14/test/support/smtpd.py
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/python3/py3versions.py
+      # pulls in python3.14-minimal), plus various other overlaps with
+      # chisel-libs (systemd units, coreutils, etc.) - see
+      # tools/resolve-base-conflicts.sh for how this is resolved
+      # generically.
+      "${CRAFT_PROJECT_DIR}"/tools/resolve-base-conflicts.sh "${CRAFT_PART_INSTALL}"/base
+
+      # See gdm-packages' override-build above for why this is needed.
+      rm -f "${CRAFT_PART_INSTALL}"/base/etc/default/motd-news
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/system/motd-news.service
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/system/motd-news.timer
+      rm -f "${CRAFT_PART_INSTALL}"/base/etc/update-motd.d/50-motd-news
 
       # This part transitively pulls in pipewire/wireplumber/
       # pipewire-pulse too (gnome-settings-daemon recommends
@@ -620,6 +632,16 @@ parts:
       mkdir -p "${CRAFT_PART_INSTALL}"/base
       mv "$tmpdir"/* "${CRAFT_PART_INSTALL}"/base/
       rmdir "$tmpdir"
+
+      # Resolve any overlap with chisel-libs (systemd units, coreutils,
+      # etc.) - see tools/resolve-base-conflicts.sh.
+      "${CRAFT_PROJECT_DIR}"/tools/resolve-base-conflicts.sh "${CRAFT_PART_INSTALL}"/base
+
+      # See gdm-packages' override-build above for why this is needed.
+      rm -f "${CRAFT_PART_INSTALL}"/base/etc/default/motd-news
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/system/motd-news.service
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/system/motd-news.timer
+      rm -f "${CRAFT_PART_INSTALL}"/base/etc/update-motd.d/50-motd-news
 
       # gnome-initial-setup depends on gnome-shell (for its wizard UI),
       # which hard-depends on gstreamer1.0-pipewire -> pipewire, and
@@ -768,6 +790,10 @@ parts:
       mkdir -p "${CRAFT_PART_INSTALL}"/base
       mv "$tmpdir"/* "${CRAFT_PART_INSTALL}"/base/
       rmdir "$tmpdir"
+
+      # Resolve any overlap with chisel-libs (locale data, etc.) - see
+      # tools/resolve-base-conflicts.sh.
+      "${CRAFT_PROJECT_DIR}"/tools/resolve-base-conflicts.sh "${CRAFT_PART_INSTALL}"/base
     override-prime: |
       # No files from this step in prime
 
