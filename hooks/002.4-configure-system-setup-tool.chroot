@@ -22,8 +22,10 @@ pages:
 EOF
 
 # Running ubuntu-desktop-init from /run/gnome-initial-setup as $HOME
-# breaks, so run without confinement for now:
-sed -i 's#/snap/bin/ubuntu-desktop-init#DESKTOP_PROVISION_PATH=/usr/share/desktop-provision /snap/ubuntu-desktop-init/current/bin/ubuntu_init#' /usr/libexec/launch-desktop-provision-init
+# breaks, so run without confinement for now. Clear DCONF_PROFILE because
+# the Flutter gsettings package cannot parse the file-db source in the
+# initial-setup profile; the GNOME session itself still uses that profile.
+sed -i 's#/snap/bin/ubuntu-desktop-init#DCONF_PROFILE= DESKTOP_PROVISION_PATH=/usr/share/desktop-provision /snap/ubuntu-desktop-init/current/bin/ubuntu_init#' /usr/libexec/launch-desktop-provision-init
 
 # remove unneeded files to free space
 rm -f /usr/lib/systemd/user/gnome-session.target.wants/gnome-initial-setup-copy-worker.service
