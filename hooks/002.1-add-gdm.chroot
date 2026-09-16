@@ -193,6 +193,28 @@ sed -i 's/warty-final-ubuntu.png/ubuntu-core-desktop-l.png/g' /usr/share/glib-2.
 sed -i 's/ubuntu-wallpaper-d.png/ubuntu-core-desktop-d.png/g' /usr/share/glib-2.0/schemas/10_ubuntu-settings.gschema.override
 glib-compile-schemas /usr/share/glib-2.0/schemas
 
+# ubuntu-settings also ships /usr/lib/netplan/00-network-manager-all.yaml,
+# which unconditionally forces netplan's *global* renderer to
+# "NetworkManager" - fine on a real Ubuntu Desktop install, where
+# NetworkManager.service is what's actually enabled/running. On this
+# image, Core's own netplan config (snapd's /etc/netplan/00-snapd-config.yaml,
+# plus whatever cloud-init/console-conf add on top) is designed around
+# systemd-networkd, and NetworkManager.service is never enabled here at
+# all. With this file in place, `netplan generate` still honours that
+# global default for any interface stanza that doesn't set its own
+# renderer, so the snapd-config interfaces end up with no corresponding
+# systemd-networkd .network files - systemd-networkd-wait-online.service
+# then waits for a interface it has nothing to say is "configured" and
+# always times out (~127s) before network-online.target (and everything
+# gated behind it - cloud-config.service, then gdm.service) proceeds
+# anyway. Connectivity still basically works (something - most likely
+# cloud-init's own NoCloud network rendering - brings the NIC up via
+# DHCP directly), but only by accident, alongside a stuck wait-online
+# unit and an extra ~2 minute boot delay. Remove the stray default so
+# netplan's real default (networkd) applies, matching what's actually
+# managing the interface.
+rm -f /usr/lib/netplan/00-network-manager-all.yaml
+
 # Remove regular Ubuntu sessions, so only confined session is available
 rm -f /usr/share/wayland-sessions/ubuntu.desktop
 rm -f /usr/share/wayland-sessions/ubuntu-wayland.desktop
