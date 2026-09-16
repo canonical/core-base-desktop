@@ -9,3 +9,6 @@ set -e
 # console getty to race the display manager.
 mkdir -p /etc/systemd/system
 ln -sfn /dev/null /etc/systemd/system/getty@tty1.service
+# console-conf also claims tty1 during early boot, before its state marker is
+# visible through the mounted console-conf data directory.
+ln -sfn /dev/null /etc/systemd/system/console-conf@.service

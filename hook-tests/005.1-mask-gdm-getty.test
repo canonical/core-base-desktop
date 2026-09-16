@@ -1,0 +1,4 @@
+#!/bin/bash -e
+
+test "$(readlink etc/systemd/system/getty@tty1.service)" = /dev/null
+test "$(readlink etc/systemd/system/console-conf@.service)" = /dev/null
