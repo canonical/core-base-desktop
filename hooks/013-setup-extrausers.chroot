@@ -39,6 +39,31 @@ sed -i 's/^passwd:.*files/\0 extrausers/' /etc/nsswitch.conf
 sed -i 's/^group:.*files/\0 [SUCCESS=merge] extrausers/' /etc/nsswitch.conf
 sed -i 's/^shadow:.*files/\0 extrausers/' /etc/nsswitch.conf
 
+# gdm3 (see hooks/002.1-add-gdm.chroot) is built with HAVE_USERDB
+# (varlink-based dynamic user support): instead of needing a real,
+# pre-provisioned "gdm-greeter" system account, it allocates one on
+# the fly and advertises it to the rest of the system as a userdb
+# "multiplexer" service, registering a socket at
+# /run/systemd/userdb/org.gnome.DisplayManager. That's only ever
+# consulted by nss_systemd though, which isn't wired into nsswitch.conf
+# by default - so classic NSS consumers like pam_unix's
+# getpwnam("gdm-greeter") fail outright
+# (pam_unix(gdm-launch-environment:account): could not identify user),
+# the greeter's PAM session never opens, and no Xorg/gnome-shell starts
+# on seat0 (gdm.service stays "running" but no login screen appears).
+#
+# Wire nss_systemd into passwd/group/shadow (right after "files" for
+# passwd/shadow; at the end for group, so we don't disturb the
+# "[SUCCESS=merge]" modifier that must stay attached to "extrausers"),
+# so pam_unix (and anything else using classic getpwnam()/getspnam())
+# resolves gdm3's dynamically-allocated greeter accounts through that
+# same multiplexer - giving the greeter a single, consistent UID
+# everywhere instead of clashing with a second one from a statically
+# pre-created account.
+sed -i 's/^passwd:\(.*\)files/passwd:\1files systemd/' /etc/nsswitch.conf
+sed -i 's/^group:\(.*\)extrausers/group:\1extrausers systemd/' /etc/nsswitch.conf
+sed -i 's/^shadow:\(.*\)files/shadow:\1files systemd/' /etc/nsswitch.conf
+
 # verify pam_extrausers.so is available
 grep pam_extrausers.so /etc/pam.d/common-password
 grep pam_extrausers.so /etc/pam.d/common-auth

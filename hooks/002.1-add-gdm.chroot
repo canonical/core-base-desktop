@@ -68,6 +68,15 @@ touch /var/lib/console-conf/complete
 # adduser to add users to the "extrausers" database.
 sed -i 's/^#USE_EXTRAUSERS=.*$/USE_EXTRAUSERS=1/' /etc/adduser.conf
 
+# This gdm3 is built with HAVE_USERDB (varlink-based dynamic user
+# support): rather than needing a real, pre-provisioned "gdm-greeter"
+# system account, gdm3 allocates one on the fly and advertises it to
+# the rest of the system as a userdb "multiplexer" service, registering
+# a socket at /run/systemd/userdb/org.gnome.DisplayManager. nsswitch.conf
+# needs "systemd" wired in for pam_unix's classic getpwnam("gdm-greeter")
+# to see it - see hooks/013-setup-extrausers.chroot, which sets this up
+# alongside the "extrausers" entries, for why and in what order.
+
 # Force gsd-xsettings to use the regular DISPLAY connection. If it
 # tries to connect to :1, gnome-shell will not auto-start Xwayland.
 mv /usr/libexec/gsd-xsettings /usr/libexec/gsd-xsettings.real
@@ -112,6 +121,23 @@ ln -s ../writable/gdm3/custom.conf /etc/gdm3/custom.conf
 # it to already exist.
 mkdir -p /var/lib/gdm3
 chown gdm:gdm /var/lib/gdm3
+
+# GDM tries to dynamically allocate a UID for its greeter session
+# first ("Failed to allocate UID for greeter"), which requires writing
+# to /etc/passwd - impossible on Ubuntu Core's read-only base. It then
+# falls back to a static system account literally named "gdm-greeter",
+# which the gdm3 .deb's own sysusers.d/gdm3.conf never creates (it only
+# creates "gdm" for the daemon itself). Without it, PAM's account check
+# in the gdm-launch-environment service fails
+# (pam_unix: could not identify user (from getpwnam(gdm-greeter))),
+# the greeter session is refused, and no Xorg/gnome-shell ever starts
+# on seat0 - gdm.service stays "running" but no login screen appears.
+#
+# Note: this image bakes /etc/passwd,shadow,group,gshadow statically at
+# build time (see hooks/000-provide-uids-gids.chroot) - systemd-sysusers
+# never actually runs at boot here (ConditionNeedsUpdate is never met
+# since /etc is pre-populated), so the fix for the missing account lives
+# in that hook instead of a sysusers.d drop-in.
 
 # NOTE: we used to unconditionally remove the org.gnome.Shell* systemd
 # --user unit templates here ("Disable gnome-shell systemd"). That was
