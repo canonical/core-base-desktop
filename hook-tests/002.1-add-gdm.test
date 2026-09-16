@@ -1,0 +1,10 @@
+#!/bin/bash -e
+
+for service in \
+    snap.ubuntu-desktop-session.screencast-service.service \
+    snap.ubuntu-desktop-session.ibus-portal-service.service
+do
+    dropin="etc/systemd/user/${service}.d/70-gdm-skip.conf"
+    test -f "$dropin"
+    grep -qx 'ConditionGroup=!gdm' "$dropin"
+done

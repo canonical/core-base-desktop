@@ -57,6 +57,23 @@ rm -f /usr/lib/systemd/user/org.freedesktop.IBus.session.generic.service
 rm -f /usr/lib/systemd/user/gnome-session.target.wants/org.freedesktop.IBus.session.GNOME.service
 rm -f /usr/lib/systemd/user/colord-session.service
 
+# GNOME Shell activates these snap-provided services in the greeter
+# session. Their snap confinement rejects GDM's dynamic home under
+# /run/gdm3/home as outside /home, so they fail repeatedly and tear down
+# the first greeter session. They are optional in GDM mode but remain
+# available in regular user sessions.
+for service in \
+    snap.ubuntu-desktop-session.screencast-service.service \
+    snap.ubuntu-desktop-session.ibus-portal-service.service
+do
+    mkdir -p "/etc/systemd/user/${service}.d"
+    cat >"/etc/systemd/user/${service}.d/70-gdm-skip.conf" <<'EOF'
+# Do not run this unit in a gdm-greeter session
+[Unit]
+ConditionGroup=!gdm
+EOF
+done
+
 # Disable console-conf, since it interferes with GDM taking over
 # /dev/tty1.  Due to the ExecStartPre/ExecStopPost commands, we can't
 # reliably get rid of it with Conflicts/After
