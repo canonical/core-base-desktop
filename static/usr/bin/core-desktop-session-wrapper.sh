@@ -43,7 +43,7 @@ if [ "$session_type" = "KDE" ]; then
     # 1. Expose our targets, services and overloads
     rm -rf $XDG_RUNTIME_DIR/systemd/user.control
     mkdir -p $XDG_RUNTIME_DIR/systemd
-    ln -sf /snap/plasma-core24-desktop/current/usr/lib/systemd/user $XDG_RUNTIME_DIR/systemd/user.control
+    ln -sf /snap/plasma-core26-desktop/current/usr/lib/systemd/user $XDG_RUNTIME_DIR/systemd/user.control
     # 2. Reload the daemon so that it picks up our changes
     systemctl --user daemon-reload
     # 3. Stop anything now masked which might have been already started
