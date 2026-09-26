@@ -836,6 +836,20 @@ parts:
     stage:
       - -README.md
 
+  fuse-broker:
+    plugin: nil
+    source: fuse-broker/
+    build-packages:
+      - golang
+    override-build: |
+      cd "${CRAFT_PART_SRC}"
+      CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o xdg-fuse-broker .
+      mkdir -p "${CRAFT_PART_INSTALL}/base/usr/bin"
+      install -m 755 xdg-fuse-broker "${CRAFT_PART_INSTALL}/base/usr/bin/xdg-fuse-broker"
+    override-prime: |
+      # No files from this step in prime; the hooks part flattens
+      # ${CRAFT_STAGE}/base into the snap root.
+
   hooks:
     after:
       - chisel-libs
@@ -846,6 +860,7 @@ parts:
       - locale-packages
       - snapd-files
       - splash-theme
+      - fuse-broker
       - build-env
     plugin: make
     source: .

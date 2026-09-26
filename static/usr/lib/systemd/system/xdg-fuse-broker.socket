@@ -1,0 +1,11 @@
+[Unit]
+Description=Privileged FUSE mount broker for the confined xdg-document-portal
+Documentation=https://github.com/canonical/ubuntu-core-desktop
+Before=multi-user.target
+
+[Socket]
+ListenStream=/run/xdg-fuse-broker.sock
+SocketMode=0666
+
+[Install]
+WantedBy=sockets.target
