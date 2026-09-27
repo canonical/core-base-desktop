@@ -15,11 +15,74 @@ fi
 export XDG_CURRENT_DESKTOP=$session_type
 export GSETTINGS_BACKEND=keyfile
 
-dbus-update-activation-environment --systemd --all
+runtime_dir="/run/user/$(id -u)"
+if ! manager_environment="$(XDG_RUNTIME_DIR="$runtime_dir" systemctl --user show-environment)"; then
+    echo "cannot inspect the user systemd environment" >&2
+    exit 1
+fi
 
-# Don't set this in our own environment, since it will make
-# the session believe it is running in X mode
-dbus-update-activation-environment --systemd DISPLAY=:0 WAYLAND_DISPLAY=wayland-0 XAUTHORITY=$XDG_RUNTIME_DIR/.Xauthority
+snap_environment_vars=()
+add_snap_environment_var() {
+    local name="$1"
+    local existing
+
+    for existing in "${snap_environment_vars[@]}"; do
+        if [ "$existing" = "$name" ]; then
+            return
+        fi
+    done
+    snap_environment_vars+=("$name")
+}
+
+while IFS='=' read -r name _; do
+    case "$name" in
+        SNAP|SNAP_*) add_snap_environment_var "$name" ;;
+    esac
+done <<< "$manager_environment"
+
+while IFS= read -r name; do
+    case "$name" in
+        SNAP|SNAP_*) add_snap_environment_var "$name" ;;
+    esac
+done < <(compgen -e)
+
+snap_environment=()
+for name in "${snap_environment_vars[@]}"; do
+    snap_environment+=("$name=")
+done
+
+activation_environment=(
+    "DISPLAY=:0"
+    "WAYLAND_DISPLAY=wayland-0"
+    "XDG_RUNTIME_DIR=$runtime_dir"
+    "XAUTHORITY=$runtime_dir/.Xauthority"
+    "XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP"
+    "GSETTINGS_BACKEND=$GSETTINGS_BACKEND"
+    "PATH=$PATH"
+)
+for name in \
+    DBUS_SESSION_BUS_ADDRESS HOME USER LOGNAME SHELL LANG LANGUAGE XDG_DATA_DIRS \
+    XDG_SESSION_TYPE XDG_SESSION_DESKTOP XDG_SESSION_CLASS XDG_SEAT XDG_VTNR \
+    XDG_MENU_PREFIX XDG_CONFIG_HOME XDG_CONFIG_DIRS XDG_DATA_HOME \
+    XDG_CACHE_HOME XDG_STATE_HOME XCURSOR_THEME XCURSOR_SIZE \
+    GNOME_SETUP_DISPLAY GTK_IM_MODULE QT_IM_MODULE QT_IM_MODULES \
+    XMODIFIERS PULSE_SERVER; do
+    if value="$(printenv "$name" 2>/dev/null)"; then
+        activation_environment+=("$name=$value")
+    fi
+done
+
+if ! XDG_RUNTIME_DIR="$runtime_dir" dbus-update-activation-environment --systemd \
+    "${snap_environment[@]}" "${activation_environment[@]}"; then
+    echo "cannot update the D-Bus activation environment" >&2
+    exit 1
+fi
+
+if [ "${#snap_environment_vars[@]}" -gt 0 ] &&
+    ! XDG_RUNTIME_DIR="$runtime_dir" systemctl --user unset-environment "${snap_environment_vars[@]}"; then
+    echo "cannot clear snap variables from the user systemd environment" >&2
+    exit 1
+fi
 
 # Set up a background task to wait for gnome-session to create its
 # Xauthority file, and copy it to a location snaps will be able to
