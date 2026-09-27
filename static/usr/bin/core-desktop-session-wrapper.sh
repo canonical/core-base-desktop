@@ -34,15 +34,36 @@ add_snap_environment_var() {
     snap_environment_vars+=("$name")
 }
 
+stale_environment_vars=()
+add_stale_environment_var() {
+    local name="$1"
+    local existing
+
+    for existing in "${stale_environment_vars[@]}"; do
+        if [ "$existing" = "$name" ]; then
+            return
+        fi
+    done
+    stale_environment_vars+=("$name")
+}
+
+for name in \
+    DISPLAY XAUTHORITY WAYLAND_DISPLAY WAYLAND_SOCKET \
+    GNOME_SHELL_SESSION_MODE GNOME_SETUP_DISPLAY; do
+    add_stale_environment_var "$name"
+done
+
 while IFS='=' read -r name _; do
     case "$name" in
         SNAP|SNAP_*) add_snap_environment_var "$name" ;;
+        LC_*) add_stale_environment_var "$name" ;;
     esac
 done <<< "$manager_environment"
 
 while IFS= read -r name; do
     case "$name" in
         SNAP|SNAP_*) add_snap_environment_var "$name" ;;
+        LC_*) add_stale_environment_var "$name" ;;
     esac
 done < <(compgen -e)
 
@@ -60,6 +81,11 @@ activation_environment=(
     "GSETTINGS_BACKEND=$GSETTINGS_BACKEND"
     "PATH=$PATH"
 )
+for name in "${stale_environment_vars[@]}"; do
+    if [[ "$name" == LC_* ]] && value="$(printenv "$name" 2>/dev/null)"; then
+        activation_environment+=("$name=$value")
+    fi
+done
 for name in \
     DBUS_SESSION_BUS_ADDRESS HOME USER LOGNAME SHELL LANG LANGUAGE XDG_DATA_DIRS \
     XDG_SESSION_TYPE XDG_SESSION_DESKTOP XDG_SESSION_CLASS XDG_SEAT XDG_VTNR \
@@ -71,6 +97,21 @@ for name in \
         activation_environment+=("$name=$value")
     fi
 done
+
+stale_activation_environment=()
+for name in "${stale_environment_vars[@]}"; do
+    stale_activation_environment+=("$name=")
+done
+if ! XDG_RUNTIME_DIR="$runtime_dir" dbus-update-activation-environment \
+    "${stale_activation_environment[@]}"; then
+    echo "cannot clear stale D-Bus activation environment values" >&2
+    exit 1
+fi
+if ! XDG_RUNTIME_DIR="$runtime_dir" systemctl --user unset-environment \
+    "${stale_environment_vars[@]}"; then
+    echo "cannot clear stale user systemd environment values" >&2
+    exit 1
+fi
 
 if ! XDG_RUNTIME_DIR="$runtime_dir" dbus-update-activation-environment --systemd \
     "${snap_environment[@]}" "${activation_environment[@]}"; then
