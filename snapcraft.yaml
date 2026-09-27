@@ -459,6 +459,10 @@ parts:
       # part/chisel-libs overlap) is resolved generically.
       "${CRAFT_PROJECT_DIR}"/tools/resolve-base-conflicts.sh "${CRAFT_PART_INSTALL}"/base
 
+      # GDM's dependency chain also stages the portal frontend. Its binary
+      # is rebuilt separately from the distro source package below.
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/libexec/xdg-desktop-portal
+
       # systemd (pulled in transitively, same as usr/sbin/halt et al.
       # above) ships the motd-news "Ubuntu Pro/news" ad banner timer -
       # Ubuntu Core has never wanted this (see
@@ -566,6 +570,10 @@ parts:
       # generically.
       "${CRAFT_PROJECT_DIR}"/tools/resolve-base-conflicts.sh "${CRAFT_PART_INSTALL}"/base
 
+      # Keep the Ubuntu package's data, but replace its frontend executable
+      # with the patched build from xdg-desktop-portal-patched below.
+      rm -f "${CRAFT_PART_INSTALL}"/base/usr/libexec/xdg-desktop-portal
+
       # See gdm-packages' override-build above for why this is needed.
       rm -f "${CRAFT_PART_INSTALL}"/base/etc/default/motd-news
       rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/system/motd-news.service
@@ -609,6 +617,78 @@ parts:
       rm -rf "${CRAFT_PART_INSTALL}"/base/usr/lib/*/pipewire-0.3
     override-prime: |
       # No files from this step in prime
+
+  xdg-desktop-portal-patched:
+    after:
+      - gnome-desktop-components
+    plugin: nil
+    source: .
+    build-packages:
+      - bubblewrap
+      - build-essential
+      - curl
+      - dpkg-dev
+      - libflatpak-dev
+      - libfuse3-dev
+      - libgdk-pixbuf-2.0-dev
+      - libgeoclue-2-dev
+      - libglib2.0-dev
+      - libgstreamer-plugins-base1.0-dev
+      - libgudev-1.0-dev
+      - libjson-glib-dev
+      - libpipewire-0.3-dev
+      - libsystemd-dev
+      - meson
+      - ninja-build
+      - pkg-config
+    override-build: |
+      set -eu
+
+      changelog="${CRAFT_STAGE}/base/usr/share/doc/xdg-desktop-portal/changelog.Debian.gz"
+      version="$(gzip -dc "${changelog}" | sed -n '1s/^[^(]*(\([^)]*\)).*/\1/p')"
+      if [ -z "${version}" ]; then
+        echo "Could not determine the staged xdg-desktop-portal version" >&2
+        exit 1
+      fi
+
+      source_version="$(printf '%s\n' "${version}" | cut -d- -f1)"
+      source_url="https://archive.ubuntu.com/ubuntu/pool/main/x/xdg-desktop-portal"
+      cd "${CRAFT_PART_BUILD}"
+      curl --fail --location --silent --show-error \
+        "${source_url}/xdg-desktop-portal_${version}.dsc" \
+        --output "xdg-desktop-portal_${version}.dsc"
+      curl --fail --location --silent --show-error \
+        "${source_url}/xdg-desktop-portal_${source_version}.orig.tar.xz" \
+        --output "xdg-desktop-portal_${source_version}.orig.tar.xz"
+      curl --fail --location --silent --show-error \
+        "${source_url}/xdg-desktop-portal_${version}.debian.tar.xz" \
+        --output "xdg-desktop-portal_${version}.debian.tar.xz"
+
+      source_dir="${CRAFT_PART_BUILD}/source"
+      dpkg-source --extract "xdg-desktop-portal_${version}.dsc" "${source_dir}"
+      patch --strip=1 --directory="${source_dir}" \
+        < "${CRAFT_PART_SRC}/patches/xdg-desktop-portal-defer-optional-backend-activation.patch"
+
+      build_dir="${CRAFT_PART_BUILD}/build"
+      meson setup "${build_dir}" "${source_dir}" \
+        --prefix=/usr \
+        --libexecdir=libexec \
+        -Ddocumentation=disabled \
+        -Dflatpak-interfaces=enabled \
+        -Dgeoclue=enabled \
+        -Dgudev=enabled \
+        -Dinstalled-tests=false \
+        -Dman-pages=disabled \
+        -Dsystemd=enabled \
+        -Dtests=disabled
+      meson compile -C "${build_dir}"
+      install_root="${CRAFT_PART_BUILD}/install"
+      DESTDIR="${install_root}" meson install --no-rebuild -C "${build_dir}"
+      install -D -m 0755 \
+        "${install_root}/usr/libexec/xdg-desktop-portal" \
+        "${CRAFT_PART_INSTALL}/base/usr/libexec/xdg-desktop-portal"
+    override-prime: |
+      # No files from this step in prime; hooks flattens ${CRAFT_STAGE}/base.
 
   system-setup-tool-packages:
     # Packages for hooks/002.4-configure-system-setup-tool.chroot
@@ -856,6 +936,7 @@ parts:
       - desktop-packages
       - gdm-packages
       - gnome-desktop-components
+      - xdg-desktop-portal-patched
       - system-setup-tool-packages
       - locale-packages
       - snapd-files

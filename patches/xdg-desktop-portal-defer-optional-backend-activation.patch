@@ -1,0 +1,36 @@
+Description: Defer optional portal backend activation until a request needs it
+The GTK backend needs the GNOME display, but the portal frontend can be
+activated before GNOME Shell creates that display. Avoid starting that
+backend while the frontend constructs Settings, Inhibit and Email proxies;
+proxy method calls can still auto-activate it once the display is ready.
+
+diff --git a/src/settings.c b/src/settings.c
+--- a/src/settings.c
++++ b/src/settings.c
+@@ -333,3 +333,3 @@ init_settings (XdpContext *context)
+         xdp_dbus_impl_settings_proxy_new_sync (connection,
+-                                               G_DBUS_PROXY_FLAGS_NONE,
++                                               G_DBUS_PROXY_FLAGS_DO_NOT_AUTO_START_AT_CONSTRUCTION,
+                                                dbus_name,
+                                                DESKTOP_DBUS_PATH,
+                                                NULL,
+diff --git a/src/inhibit.c b/src/inhibit.c
+--- a/src/inhibit.c
++++ b/src/inhibit.c
+@@ -585,3 +585,3 @@ init_inhibit (XdpContext *context)
+   impl = xdp_dbus_impl_inhibit_proxy_new_sync (connection,
+-                                               G_DBUS_PROXY_FLAGS_NONE,
++                                               G_DBUS_PROXY_FLAGS_DO_NOT_AUTO_START_AT_CONSTRUCTION,
+                                                impl_config->dbus_name,
+                                                "/org/freedesktop/portal/desktop",
+                                                NULL, &error);
+diff --git a/src/email.c b/src/email.c
+--- a/src/email.c
++++ b/src/email.c
+@@ -367,3 +367,3 @@ init_email (XdpContext *context)
+   impl = xdp_dbus_impl_email_proxy_new_sync (connection,
+-                                             G_DBUS_PROXY_FLAGS_NONE,
++                                             G_DBUS_PROXY_FLAGS_DO_NOT_AUTO_START_AT_CONSTRUCTION,
+                                              impl_config->dbus_name,
+                                              DESKTOP_DBUS_PATH,
+                                              NULL,
