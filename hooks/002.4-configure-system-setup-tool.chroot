@@ -28,16 +28,28 @@ EOF
 sed -i 's#/snap/bin/ubuntu-desktop-init#DCONF_PROFILE= DESKTOP_PROVISION_PATH=/usr/share/desktop-provision /snap/ubuntu-desktop-init/current/bin/ubuntu_init#' /usr/libexec/launch-desktop-provision-init
 
 # remove unneeded files to free space
+# The GNOME session does not use the GeoClue demo agent. Do not leave
+# its host-executed autostart entry in the image.
+rm -f /etc/xdg/autostart/geoclue-demo-agent.desktop
+
+# The normal GNOME first-login and upgrade helpers are not used; Ubuntu's
+# first-boot wizard is provided by ubuntu-desktop-init. Keep the separate
+# GDM initial-setup session below, which launches that Ubuntu wizard.
 rm -f /usr/lib/systemd/user/gnome-session.target.wants/gnome-initial-setup-copy-worker.service
 rm -f /usr/lib/systemd/user/gnome-session.target.wants/gnome-initial-setup-first-login.service
+rm -f /usr/lib/systemd/user/gnome-session.target.wants/gnome-initial-setup-upgrade-login.service
+rm -f /usr/lib/systemd/user/graphical-session-pre.target.wants/gnome-initial-setup-copy-worker.service
 rm -f /usr/share/gnome-initial-setup/vendor.conf
 rm -rf /usr/share/doc/gnome-initial-setup
 rm -f /usr/libexec/gnome-initial-setup
 rm -f /usr/libexec/gnome-initial-setup-copy-worker
 rm -f /usr/lib/systemd/user/gnome-initial-setup-copy-worker.service
 rm -f /usr/lib/systemd/user/gnome-initial-setup-first-login.service
+rm -f /usr/lib/systemd/user/gnome-initial-setup-upgrade-login.service
 rm -f /etc/xdg/autostart/gnome-initial-setup-copy-worker.desktop
 rm -f /etc/xdg/autostart/gnome-initial-setup-first-login.desktop
+rm -f /usr/share/applications/gnome-initial-setup.desktop
+rm -f /usr/share/ubuntu/applications/gnome-initial-setup.desktop
 
 # configure the Ubuntu theme colors for the initial session
 sed -i '2 i "stylesheetName": "Yaru/gnome-shell.css",' /usr/share/gnome-shell/modes/initial-setup.json
