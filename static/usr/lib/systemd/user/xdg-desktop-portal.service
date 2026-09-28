@@ -2,7 +2,7 @@
 Description=Portal service
 PartOf=graphical-session.target
 Requires=dbus.service
-After=dbus.service graphical-session.target
+After=dbus.service
 
 [Service]
 Type=dbus

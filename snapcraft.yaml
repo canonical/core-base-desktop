@@ -667,7 +667,7 @@ parts:
       source_dir="${CRAFT_PART_BUILD}/source"
       dpkg-source --extract "xdg-desktop-portal_${version}.dsc" "${source_dir}"
       patch --strip=1 --directory="${source_dir}" \
-        < "${CRAFT_PART_SRC}/patches/xdg-desktop-portal-defer-optional-backend-activation.patch"
+        < "${CRAFT_PART_SRC}/patches/xdg-desktop-portal-defer-backend-activation.patch"
 
       build_dir="${CRAFT_PART_BUILD}/build"
       meson setup "${build_dir}" "${source_dir}" \

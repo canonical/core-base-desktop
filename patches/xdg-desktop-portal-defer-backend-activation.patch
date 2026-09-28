@@ -1,0 +1,139 @@
+Description: Avoid portal self-activation and defer backend activation
+The confined frontend's connected desktop slot makes GIO treat it as a
+portal client. Suppress that detection while the frontend initializes its
+own GIO monitors, so they do not block on the frontend's D-Bus activation.
+Restore the snap environment before serving requests. The GTK backend also
+needs the GNOME display, but the frontend can start before GNOME Shell
+creates it. Avoid starting it while constructing implementation proxies;
+proxy method calls can still auto-activate it once the display is ready.
+Use the requesting app's permissions ID when registering selected files
+with the document portal. Permit AddNamedFull only for the confined session
+frontend, whose Documents D-Bus plug is assigned only to that frontend.
+Open selected files with the access mode requested by FileChooser so
+writable document grants are backed by a writable descriptor.
+
+diff --git a/src/settings.c b/src/settings.c
+--- a/src/settings.c
++++ b/src/settings.c
+@@ -333,5 +333,5 @@ init_settings (XdpContext *context)
+         xdp_dbus_impl_settings_proxy_new_sync (connection,
+-                                               G_DBUS_PROXY_FLAGS_NONE,
++                                               G_DBUS_PROXY_FLAGS_DO_NOT_AUTO_START_AT_CONSTRUCTION,
+                                                dbus_name,
+                                                DESKTOP_DBUS_PATH,
+                                                NULL,
+diff --git a/src/inhibit.c b/src/inhibit.c
+--- a/src/inhibit.c
++++ b/src/inhibit.c
+@@ -585,5 +585,5 @@ init_inhibit (XdpContext *context)
+   impl = xdp_dbus_impl_inhibit_proxy_new_sync (connection,
+-                                               G_DBUS_PROXY_FLAGS_NONE,
++                                               G_DBUS_PROXY_FLAGS_DO_NOT_AUTO_START_AT_CONSTRUCTION,
+                                                impl_config->dbus_name,
+                                                "/org/freedesktop/portal/desktop",
+                                                NULL, &error);
+diff --git a/src/email.c b/src/email.c
+--- a/src/email.c
++++ b/src/email.c
+@@ -367,5 +367,5 @@ init_email (XdpContext *context)
+   impl = xdp_dbus_impl_email_proxy_new_sync (connection,
+-                                             G_DBUS_PROXY_FLAGS_NONE,
++                                             G_DBUS_PROXY_FLAGS_DO_NOT_AUTO_START_AT_CONSTRUCTION,
+                                              impl_config->dbus_name,
+                                              DESKTOP_DBUS_PATH,
+                                              NULL,
+diff --git a/src/file-chooser.c b/src/file-chooser.c
+--- a/src/file-chooser.c
++++ b/src/file-chooser.c
+@@ -131,7 +131,7 @@
+           if (xdp_app_info_is_host (request->app_info))
+             ruri = g_strdup (uris[i]);
+           else
+-            ruri = xdp_register_document (uris[i], xdp_app_info_get_id (request->app_info), flags, &error);
++            ruri = xdp_register_document (uris[i], xdp_app_info_get_permissions_id (request->app_info), flags, &error);
+ 
+           if (ruri == NULL)
+             {
+@@ -869,4 +869,4 @@ init_file_chooser (XdpContext *context)
+   impl = xdp_dbus_impl_file_chooser_proxy_new_sync (connection,
+-                                                    G_DBUS_PROXY_FLAGS_NONE,
++                                                    G_DBUS_PROXY_FLAGS_DO_NOT_AUTO_START_AT_CONSTRUCTION,
+                                                     impl_config->dbus_name,
+                                                     DESKTOP_DBUS_PATH,
+diff --git a/src/xdp-main.c b/src/xdp-main.c
+--- a/src/xdp-main.c
++++ b/src/xdp-main.c
+@@ -37,6 +37,7 @@
+   int exit_status;
+   GMainLoop *loop;
+   XdpContext *context;
++  char *snap;
+ } XdpMain;
+ 
+ static void
+@@ -81,8 +82,13 @@
+ {
+   XdpMain *xdp_main = user_data;
+   g_autoptr(GError) error = NULL;
++  gboolean registered;
+ 
+-  if (!xdp_context_register (xdp_main->context, connection, &error))
++  registered = xdp_context_register (xdp_main->context, connection, &error);
++  if (xdp_main->snap != NULL)
++    g_setenv ("SNAP", xdp_main->snap, TRUE);
++
++  if (!registered)
+     {
+       g_critical ("Starting portals failed: %s", error->message);
+       xdp_main_exit (xdp_main, EXIT_FAILURE);
+@@ -129,6 +135,7 @@
+   g_autoptr(GError) error = NULL;
+   g_autoptr(GDBusConnection) session_bus = NULL;
+   g_autoptr(GSource) signal_handler_source = NULL;
++  g_autofree char *snap = NULL;
+   g_autoptr(GOptionContext) option_context = NULL;
+ 
+   gboolean opt_verbose = FALSE;
+@@ -142,6 +149,10 @@
+     { NULL }
+   };
+ 
++  snap = g_strdup (g_getenv ("SNAP"));
++  /* GIO caches sandbox detection on first use. */
++  g_unsetenv ("SNAP");
++
+   if (g_getenv ("XDG_DESKTOP_PORTAL_WAIT_FOR_DEBUGGER") != NULL)
+     {
+       g_printerr ("\ndesktop portal (PID %d) is waiting for a debugger. "
+@@ -213,6 +224,7 @@
+   xdp_main.exit_status = 0;
+   xdp_main.loop = loop;
+   xdp_main.context = context;
++  xdp_main.snap = snap;
+ 
+   /* Setup a signal handler so that we can quit cleanly.
+    * This is useful for triggering asan.
+diff --git a/src/xdp-documents.c b/src/xdp-documents.c
+--- a/src/xdp-documents.c
++++ b/src/xdp-documents.c
+@@ -111,1 +111,2 @@
+-    fd = open (path, O_CLOEXEC);
++    fd = open (path, O_CLOEXEC |
++               ((flags & XDP_DOCUMENT_FLAG_WRITABLE) ? O_RDWR : O_RDONLY));
+diff --git a/document-portal/document-portal.c b/document-portal/document-portal.c
+--- a/document-portal/document-portal.c
++++ b/document-portal/document-portal.c
+@@ -1098,8 +1098,12 @@ portal_add_named_full (GDBusMethodInvocation *invocation,
+   filename = g_variant_get_bytestring (filename_v);
+ 
+   /* This is only allowed from the host, or else we could leak existence of files */
+-  if (!xdp_app_info_is_host (app_info))
++  /* The session snap's Documents D-Bus plug is assigned only to its portal
++   * frontend. */
++  if (!xdp_app_info_is_host (app_info) &&
++      g_strcmp0 (xdp_app_info_get_permissions_id (app_info),
++                 "snap.ubuntu-desktop-session_xdg-desktop-portal") != 0)
+     {
+       g_dbus_method_invocation_return_error (invocation,
+                                              XDG_DESKTOP_PORTAL_ERROR, XDG_DESKTOP_PORTAL_ERROR_NOT_ALLOWED,
+                                              "Not enough permissions");

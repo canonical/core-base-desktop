@@ -79,17 +79,19 @@ install:
 	# remove the auth file again
 	rm -f $(DESTDIR)/etc/apt/auth.conf.d/01-fips.conf
 
-	# xdg-document-portal is now shipped confined as a snap dbus-activated
-	# daemon (ubuntu-desktop-session's xdg-document-portal app), using a
-	# privileged fuse-broker + fusermount3 shim (via the fuse-device
-	# interface) to perform its FUSE mount, because fusermount3's setuid
-	# mechanism cannot work on this nosuid rootfs. Remove the stock
-	# unconfined unit/dbus-activation files so systemd doesn't refuse to
-	# start due to two units claiming the same
-	# BusName=org.freedesktop.portal.Documents, and so nothing races the
-	# snap's own confined instance for the bus name.
+	# The portal frontend, permission store, GTK backend, and document portal
+	# are snap D-Bus-activated daemons. Remove their host units and activation
+	# files so systemd cannot find competing services for the snap-owned names.
+	# The document portal uses a privileged fuse-broker + fusermount3 shim
+	# because fusermount3's setuid mechanism cannot work on this nosuid rootfs.
+	rm -f $(DESTDIR)/usr/lib/systemd/user/xdg-desktop-portal.service
+	rm -f $(DESTDIR)/usr/lib/systemd/user/xdg-desktop-portal-gtk.service
+	rm -f $(DESTDIR)/usr/lib/systemd/user/xdg-permission-store.service
 	rm -f $(DESTDIR)/usr/lib/systemd/user/xdg-document-portal.service
+	rm -f $(DESTDIR)/usr/share/dbus-1/services/org.freedesktop.portal.Desktop.service
 	rm -f $(DESTDIR)/usr/share/dbus-1/services/org.freedesktop.portal.Documents.service
+	rm -f $(DESTDIR)/usr/share/dbus-1/services/org.freedesktop.impl.portal.desktop.gtk.service
+	rm -f $(DESTDIR)/usr/share/dbus-1/services/org.freedesktop.impl.portal.PermissionStore.service
 
 	# see https://github.com/systemd/systemd/blob/v247/src/shared/clock-util.c#L145
 	touch $(DESTDIR)/usr/lib/clock-epoch
@@ -122,4 +124,3 @@ test:
 etc-report:
 	cd stage && find etc/
 	echo "Amount of cruft in /etc left: `find stage/etc/ | wc -l`"
-
