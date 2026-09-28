@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.gnome.keyring.PrivatePrompter
+Exec=/snap/bin/ubuntu-desktop-session.gcr-prompter
+AssumedAppArmorLabel=snap.ubuntu-desktop-session.gcr-prompter

@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.gnome.Settings
+Exec=/snap/bin/ubuntu-desktop-session.gnome-control-center --gapplication-service
+AssumedAppArmorLabel=snap.ubuntu-desktop-session.gnome-control-center

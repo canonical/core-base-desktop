@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Certificate and Key Storage
+Comment=GNOME Keyring: PKCS#11 Component
+Exec=/snap/bin/ubuntu-desktop-session.gnome-keyring-daemon --start --components=pkcs11
+OnlyShowIn=GNOME;Unity;MATE;
+NoDisplay=true
+X-GNOME-Autostart-Phase=PreDisplayServer
+X-GNOME-AutoRestart=false
+X-GNOME-Autostart-Notify=true
+X-Ubuntu-Gettext-Domain=gnome-keyring

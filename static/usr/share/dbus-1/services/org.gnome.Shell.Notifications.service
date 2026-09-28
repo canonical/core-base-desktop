@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.gnome.Shell.Notifications
+Exec=/snap/bin/ubuntu-desktop-session.gnome-shell-notifications
+AssumedAppArmorLabel=snap.ubuntu-desktop-session.gnome-shell-notifications

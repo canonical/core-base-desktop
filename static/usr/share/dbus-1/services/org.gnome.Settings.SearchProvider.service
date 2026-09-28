@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.gnome.Settings.SearchProvider
+Exec=/snap/bin/ubuntu-desktop-session.gnome-control-center-search-provider
+AssumedAppArmorLabel=snap.ubuntu-desktop-session.gnome-control-center-search-provider

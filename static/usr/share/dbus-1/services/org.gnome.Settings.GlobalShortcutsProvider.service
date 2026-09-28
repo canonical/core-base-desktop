@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.gnome.Settings.GlobalShortcutsProvider
+Exec=/snap/bin/ubuntu-desktop-session.gnome-control-center-global-shortcuts-provider
+AssumedAppArmorLabel=snap.ubuntu-desktop-session.gnome-control-center-global-shortcuts-provider

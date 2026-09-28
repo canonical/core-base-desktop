@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.gnome.Shell.HotplugSniffer
+Exec=/snap/bin/ubuntu-desktop-session.gnome-shell-hotplug-sniffer
+AssumedAppArmorLabel=snap.ubuntu-desktop-session.gnome-shell-hotplug-sniffer
