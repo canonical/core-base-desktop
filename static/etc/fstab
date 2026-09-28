@@ -26,6 +26,7 @@
 /writable/system-data/etc/polkit-1/rules.d /etc/polkit-1/rules.d none bind,x-initrd.mount 0 0
 /writable/system-data/etc/polkit-1/actions /etc/polkit-1/actions none bind,x-initrd.mount 0 0
 /writable/system-data/etc/motd.d /etc/motd.d none bind,x-initrd.mount 0 0
+/writable/system-data/etc/colord /etc/colord none bind,x-initrd.mount 0 0
 /writable/system-data/etc/chrony /etc/chrony none bind,x-initrd.mount 0 0
 /writable/system-data/var/lib/AccountsService /var/lib/AccountsService none bind 0 0
 /writable/system-data/var/lib/gdm3 /var/lib/gdm3 none bind 0 0
@@ -43,6 +44,7 @@
 
 /writable/system-data/var/cache/apparmor /var/cache/apparmor none bind 0 0
 /writable/system-data/var/cache/snapd /var/cache/snapd none bind 0 0
+tmpfs /var/cache/colord tmpfs mode=0755,nodev,nosuid,noexec 0 0
 /writable/system-data/var/lib/cloud /var/lib/cloud none bind 0 0
 /writable/system-data/var/lib/console-conf /var/lib/console-conf none bind 0 0
 /writable/system-data/var/lib/dbus /var/lib/dbus none bind 0 0

@@ -16,6 +16,12 @@ mkdir -p /usr/share/fonts
 mkdir -p /usr/local/share/fonts
 mkdir -p /var/cache/fontconfig
 
+echo "creating colord cache mount point" >&2
+mkdir -p /var/cache/colord
+
+echo "creating colord configuration mount point" >&2
+mkdir -p /etc/colord
+
 echo "creating snap dirs/files"
 mkdir -p /snap /var/snap
 mkdir -p /usr/lib/snapd

@@ -24,6 +24,7 @@ done
 dirs=(
     /root
     /etc/cloud
+    /etc/colord
     /etc/dbus-1
     /etc/default/swapfile
     /etc/environment
