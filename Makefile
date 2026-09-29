@@ -79,12 +79,13 @@ install:
 	# remove the auth file again
 	rm -f $(DESTDIR)/etc/apt/auth.conf.d/01-fips.conf
 
-	# The portal frontend, permission store, GTK backend, and document portal
-	# are snap D-Bus-activated daemons. Remove their host units and activation
-	# files so systemd cannot find competing services for the snap-owned names.
+	# The portal frontend, GNOME and GTK backends, permission store, and
+	# document portal are snap D-Bus-activated daemons. Remove their host
+	# units and activation files to avoid competing services.
 	# The document portal uses a privileged fuse-broker + fusermount3 shim
 	# because fusermount3's setuid mechanism cannot work on this nosuid rootfs.
 	rm -f $(DESTDIR)/usr/lib/systemd/user/xdg-desktop-portal.service
+	rm -f $(DESTDIR)/usr/lib/systemd/user/xdg-desktop-portal-gnome.service
 	rm -f $(DESTDIR)/usr/lib/systemd/user/xdg-desktop-portal-gtk.service
 	rm -f $(DESTDIR)/usr/lib/systemd/user/xdg-permission-store.service
 	rm -f $(DESTDIR)/usr/lib/systemd/user/xdg-document-portal.service
