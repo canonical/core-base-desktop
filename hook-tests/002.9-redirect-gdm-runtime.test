@@ -1,0 +1,78 @@
+#!/bin/bash -e
+
+launcher=usr/libexec/gnome-content-launch
+test -x "$launcher"
+grep -Fqx '            target="$content_root/usr/${alias_path#/usr/}"' "$launcher"
+grep -Fqx '                gdm|gdm-greeter|gdm-greeter-[0-9]*)' "$launcher"
+grep -Fq '"$content_root"/usr/lib/gnome-shell \' "$launcher"
+grep -Fq '"$content_root"/usr/lib/*-linux-gnu/mutter-* \' "$launcher"
+
+for executable in \
+    usr/bin/dconf \
+    usr/bin/gnome-session \
+    usr/bin/gnome-shell \
+    usr/libexec/gdm-auth-config-debian \
+    usr/libexec/gdm-new-session \
+    usr/libexec/gdm-runtime-config \
+    usr/libexec/gdm-session-worker \
+    usr/libexec/gdm-wayland-session \
+    usr/libexec/gdm-x-session \
+    usr/libexec/gnome-session-ctl \
+    usr/libexec/gnome-session-init-worker \
+    usr/libexec/gnome-session-service \
+    usr/libexec/gsd-a11y-settings \
+    usr/libexec/gsd-color \
+    usr/libexec/gsd-datetime \
+    usr/libexec/gsd-housekeeping \
+    usr/libexec/gsd-keyboard \
+    usr/libexec/gsd-media-keys \
+    usr/libexec/gsd-power \
+    usr/libexec/gsd-printer \
+    usr/libexec/gsd-print-notifications \
+    usr/libexec/gsd-rfkill \
+    usr/libexec/gsd-screensaver-proxy \
+    usr/libexec/gsd-sharing \
+    usr/libexec/gsd-smartcard \
+    usr/libexec/gsd-sound \
+    usr/libexec/gsd-usb-protection \
+    usr/libexec/gsd-wwan \
+    usr/libexec/gsd-xsettings
+do
+    test -L "$executable"
+    test "$(readlink "$executable")" = "/$launcher"
+    test -x "${executable}.core26"
+done
+
+for directory in gdm gnome-settings-daemon; do
+    test -L "usr/share/$directory"
+    test "$(readlink "usr/share/$directory")" = \
+        "/snap/gnome-desktop-content/current/usr/share/$directory"
+    test -d "usr/share/$directory.core26"
+done
+
+test -L usr/lib/gnome-shell
+test "$(readlink usr/lib/gnome-shell)" = \
+    /snap/gnome-desktop-content/current/usr/lib/gnome-shell
+test -d usr/lib/gnome-shell.core26
+
+test -L usr/lib/x86_64-linux-gnu/mutter-18
+test "$(readlink usr/lib/x86_64-linux-gnu/mutter-18)" = \
+    /snap/gnome-desktop-content/current/usr/lib/x86_64-linux-gnu/mutter-18
+test -d usr/lib/x86_64-linux-gnu/mutter-18.core26
+
+test -L usr/share/gnome-shell/theme
+test "$(readlink usr/share/gnome-shell/theme)" = \
+    /snap/gnome-desktop-content/current/usr/share/gnome-shell/theme
+test -d usr/share/gnome-shell/theme.core26
+test -f usr/share/gnome-shell/modes/initial-setup.json
+
+test -L usr/share/gnome-session/sessions/gnome-login.session
+test "$(readlink usr/share/gnome-session/sessions/gnome-login.session)" = \
+    /snap/gnome-desktop-content/current/usr/share/gnome-session/sessions/gnome-login.session
+test -f usr/share/gnome-session/sessions/gnome-login.session.core26
+test ! -e usr/share/gnome-session/sessions/ubuntu.session
+
+dropin=etc/systemd/system/gdm.service.d/50-gnome-content.conf
+grep -Fqx 'ExecStartPre=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/share/gdm/generate-config /usr/share/gdm.core26/generate-config' "$dropin"
+grep -Fqx 'ExecStart=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/sbin/gdm3 /usr/sbin/gdm3.core26' "$dropin"
+grep -Fqx 'ExecReload=/bin/kill -SIGHUP $MAINPID' "$dropin"

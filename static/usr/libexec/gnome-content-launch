@@ -1,0 +1,125 @@
+#!/bin/sh
+set -eu
+
+content_root=/snap/gnome-desktop-content/current
+
+if [ "${1-}" = "--content" ]; then
+    if [ "$#" -lt 3 ]; then
+        echo "usage: $0 --content CONTENT_EXECUTABLE CORE_FALLBACK [ARGS...]" >&2
+        exit 2
+    fi
+    target=$2
+    fallback=$3
+    shift 3
+else
+    alias_path=$0
+    # Image assembly wraps gnome-session and preserves this launcher as
+    # /usr/bin/gnome-session.real.
+    case "$alias_path" in
+        *.real)
+            alias_path=${alias_path%.real}
+            ;;
+    esac
+    case "$alias_path" in
+        /usr/*)
+            target="$content_root/usr/${alias_path#/usr/}"
+            ;;
+        *)
+            echo "cannot resolve content launcher alias: $alias_path" >&2
+            exit 2
+            ;;
+    esac
+    fallback="${alias_path}.core26"
+
+    case "$alias_path" in
+        /usr/libexec/gdm-*)
+            ;;
+        *)
+            account_entry="$(getent passwd "$(id -u)")" || {
+                echo "cannot resolve launcher account for uid $(id -u)" >&2
+                exit 1
+            }
+            account=${account_entry%%:*}
+            case "$account" in
+                gdm|gdm-greeter|gdm-greeter-[0-9]*)
+                    ;;
+                *)
+                    if [ -x "$fallback" ]; then
+                        exec "$fallback" "$@"
+                    fi
+                    echo "refusing content runtime for non-GDM account '$account': $alias_path" >&2
+                    exit 126
+                    ;;
+            esac
+            ;;
+    esac
+
+    case "$alias_path" in
+        */gsd-xsettings)
+            GNOME_SETUP_DISPLAY=${DISPLAY-}
+            export GNOME_SETUP_DISPLAY
+            ;;
+    esac
+fi
+
+if [ ! -x "$target" ]; then
+    if [ -x "$fallback" ]; then
+        exec "$fallback" "$@"
+    fi
+    echo "content executable is unavailable and no core fallback exists: $target" >&2
+    exit 127
+fi
+
+PATH="$content_root/usr/bin:$content_root/usr/sbin:$content_root/usr/libexec:$PATH"
+export PATH
+
+library_paths=
+for path in \
+    "$content_root"/usr/lib/*-linux-gnu \
+    "$content_root"/lib/*-linux-gnu \
+    "$content_root"/usr/lib/gnome-shell \
+    "$content_root"/usr/lib/gnome-settings-daemon-* \
+    "$content_root"/usr/lib/*-linux-gnu/mutter-* \
+    "$content_root"/usr/lib \
+    "$content_root"/lib
+do
+    if [ -d "$path" ]; then
+        library_paths="${library_paths:+$library_paths:}$path"
+    fi
+done
+if [ -n "$library_paths" ]; then
+    if [ -n "${LD_LIBRARY_PATH-}" ]; then
+        library_paths="$library_paths:$LD_LIBRARY_PATH"
+    fi
+    LD_LIBRARY_PATH=$library_paths
+    export LD_LIBRARY_PATH
+fi
+
+typelib_paths=
+for path in \
+    "$content_root"/usr/lib/*-linux-gnu/girepository-1.0 \
+    "$content_root"/usr/lib/*-linux-gnu/mutter-* \
+    "$content_root"/usr/lib/girepository-1.0 \
+    "$content_root"/usr/lib/gnome-shell \
+    "$content_root"/usr/lib/gnome-shell/girepository-1.0 \
+    "$content_root"/usr/lib/gnome-settings-daemon-*/girepository-1.0
+do
+    if [ -d "$path" ]; then
+        typelib_paths="${typelib_paths:+$typelib_paths:}$path"
+    fi
+done
+if [ -n "$typelib_paths" ]; then
+    if [ -n "${GI_TYPELIB_PATH-}" ]; then
+        typelib_paths="$typelib_paths:$GI_TYPELIB_PATH"
+    fi
+    GI_TYPELIB_PATH=$typelib_paths
+    export GI_TYPELIB_PATH
+fi
+
+# GDM's session helper can pass its environment into the logged-in user's
+# systemd manager. Leave XDG_DATA_DIRS and GIO_EXTRA_MODULES untouched so
+# the confined session keeps its own content-snap data and GIO modules.
+GSETTINGS_SCHEMA_DIR="$content_root/usr/share/glib-2.0/schemas"
+export GSETTINGS_SCHEMA_DIR
+
+exec "$target" "$@"

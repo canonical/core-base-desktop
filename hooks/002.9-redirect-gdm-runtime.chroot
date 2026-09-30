@@ -1,0 +1,123 @@
+#!/bin/sh -e
+
+content_root=/snap/gnome-desktop-content/current
+launcher=/usr/libexec/gnome-content-launch
+
+# Keep the package-provided host units, but make their greeter commands
+# dispatch to the content runtime. Non-GDM user sessions retain the core
+# executable fallback until the cleanup stage.
+for executable in \
+    /usr/bin/dconf \
+    /usr/bin/gnome-session \
+    /usr/bin/gnome-shell \
+    /usr/libexec/gdm-auth-config-debian \
+    /usr/libexec/gdm-new-session \
+    /usr/libexec/gdm-runtime-config \
+    /usr/libexec/gdm-session-worker \
+    /usr/libexec/gdm-wayland-session \
+    /usr/libexec/gdm-x-session \
+    /usr/libexec/gnome-session-ctl \
+    /usr/libexec/gnome-session-init-worker \
+    /usr/libexec/gnome-session-service \
+    /usr/libexec/gsd-a11y-settings \
+    /usr/libexec/gsd-color \
+    /usr/libexec/gsd-datetime \
+    /usr/libexec/gsd-housekeeping \
+    /usr/libexec/gsd-keyboard \
+    /usr/libexec/gsd-media-keys \
+    /usr/libexec/gsd-power \
+    /usr/libexec/gsd-printer \
+    /usr/libexec/gsd-print-notifications \
+    /usr/libexec/gsd-rfkill \
+    /usr/libexec/gsd-screensaver-proxy \
+    /usr/libexec/gsd-sharing \
+    /usr/libexec/gsd-smartcard \
+    /usr/libexec/gsd-sound \
+    /usr/libexec/gsd-usb-protection \
+    /usr/libexec/gsd-wwan \
+    /usr/libexec/gsd-xsettings
+do
+    if [ -e "$executable" ] || [ -L "$executable" ]; then
+        if [ -e "${executable}.core26" ] || [ -L "${executable}.core26" ]; then
+            echo "core fallback already exists: ${executable}.core26" >&2
+            exit 1
+        fi
+        mv "$executable" "${executable}.core26"
+    fi
+    ln -sfn "$launcher" "$executable"
+done
+
+# GDM and GNOME Shell use compiled-in /usr/share paths, so expose the
+# content snap's data at the host paths while retaining Stage 3 copies.
+for directory in \
+    gdm \
+    gnome-settings-daemon
+do
+    host_path="/usr/share/$directory"
+    if [ -e "$host_path" ] || [ -L "$host_path" ]; then
+        if [ -e "${host_path}.core26" ] || [ -L "${host_path}.core26" ]; then
+            echo "core data fallback already exists: ${host_path}.core26" >&2
+            exit 1
+        fi
+        mv "$host_path" "${host_path}.core26"
+    fi
+    ln -sfn "$content_root/usr/share/$directory" "$host_path"
+done
+
+# Keep the host library path for package consumers, but make it resolve to
+# the same Shell libraries as the greeter's content-snap executable.
+host_shell_libdir=/usr/lib/gnome-shell
+if [ -e "$host_shell_libdir" ] || [ -L "$host_shell_libdir" ]; then
+    if [ -e "${host_shell_libdir}.core26" ] || [ -L "${host_shell_libdir}.core26" ]; then
+        echo "core library fallback already exists: ${host_shell_libdir}.core26" >&2
+        exit 1
+    fi
+    mv "$host_shell_libdir" "${host_shell_libdir}.core26"
+fi
+ln -sfn "$content_root/usr/lib/gnome-shell" "$host_shell_libdir"
+
+host_mutter_libdir=/usr/lib/x86_64-linux-gnu/mutter-18
+if [ -e "$host_mutter_libdir" ] || [ -L "$host_mutter_libdir" ]; then
+    if [ -e "${host_mutter_libdir}.core26" ] || [ -L "${host_mutter_libdir}.core26" ]; then
+        echo "core library fallback already exists: ${host_mutter_libdir}.core26" >&2
+        exit 1
+    fi
+    mv "$host_mutter_libdir" "${host_mutter_libdir}.core26"
+fi
+ln -sfn "$content_root/usr/lib/x86_64-linux-gnu/mutter-18" "$host_mutter_libdir"
+
+# Keep core's initial-setup mode data, which is still customized by
+# hooks/002.4, while taking GNOME Shell's greeter theme from content.
+host_theme=/usr/share/gnome-shell/theme
+if [ -e "$host_theme" ] || [ -L "$host_theme" ]; then
+    if [ -e "${host_theme}.core26" ] || [ -L "${host_theme}.core26" ]; then
+        echo "core theme fallback already exists: ${host_theme}.core26" >&2
+        exit 1
+    fi
+    mv "$host_theme" "${host_theme}.core26"
+fi
+ln -sfn "$content_root/usr/share/gnome-shell/theme" "$host_theme"
+
+host_session=/usr/share/gnome-session/sessions/gnome-login.session
+mkdir -p "$(dirname "$host_session")"
+if [ -e "$host_session" ] || [ -L "$host_session" ]; then
+    if [ -e "${host_session}.core26" ] || [ -L "${host_session}.core26" ]; then
+        echo "core session fallback already exists: ${host_session}.core26" >&2
+        exit 1
+    fi
+    mv "$host_session" "${host_session}.core26"
+fi
+ln -sfn "$content_root/usr/share/gnome-session/sessions/gnome-login.session" \
+    "$host_session"
+
+mkdir -p /etc/systemd/system/gdm.service.d
+cat >/etc/systemd/system/gdm.service.d/50-gnome-content.conf <<'EOF'
+[Service]
+ExecStartPre=
+ExecStartPre=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/share/gdm/generate-config /usr/share/gdm.core26/generate-config
+ExecStart=
+ExecStart=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/sbin/gdm3 /usr/sbin/gdm3.core26
+ExecReload=
+ExecReload=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/share/gdm/generate-config /usr/share/gdm.core26/generate-config
+ExecReload=/bin/kill -SIGHUP $MAINPID
+EOF
