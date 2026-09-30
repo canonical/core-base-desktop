@@ -58,3 +58,17 @@ sed -i '4 i "themeResourceName": "theme/Yaru/gnome-shell-theme.gresource",' /usr
 sed -i '5 i "iconsResourceName": "theme/Yaru/gnome-shell-icons.gresource",' /usr/share/gnome-shell/modes/initial-setup.json
 
 mv /init-default.compiled /usr/share/gnome-initial-setup/initial-setup-dconf-defaults
+
+# The content snap supplies the user-session Settings app, portal
+# translations, and LocalSearch translations. The host GDM greeter does
+# not consume these messages or schemas.
+rm -f /usr/share/glib-2.0/schemas/org.gnome.control-center.gschema.xml
+rm -f /usr/share/locale/*/LC_MESSAGES/gnome-control-center-2.0.mo
+rm -f /usr/share/locale/*/LC_MESSAGES/xdg-desktop-portal.mo
+rm -f /usr/share/locale/*/LC_MESSAGES/xdg-desktop-portal-gnome.mo
+rm -f /usr/share/locale/*/LC_MESSAGES/xdg-desktop-portal-gtk.mo
+rm -f /usr/share/locale/*/LC_MESSAGES/localsearch.mo
+rm -f /usr/share/locale/*/LC_MESSAGES/tinysparql.mo
+rm -f /usr/share/locale/*/LC_MESSAGES/nautilus.mo
+rm -f /usr/share/locale/*/LC_MESSAGES/nautilus-share.mo
+rm -f /usr/share/locale/*/LC_MESSAGES/gnome-terminal.mo

@@ -42,5 +42,7 @@ ln -s writable/vconsole.conf /etc/vconsole.conf
 
 # Move im-config from /etc/default to writable directory so the
 # desktop session's input method configuration persists.
-mv /etc/default/im-config /etc/writable/default/im-config
-ln -s ../writable/default/im-config /etc/default/im-config
+if [ -e /etc/default/im-config ]; then
+    mv /etc/default/im-config /etc/writable/default/im-config
+    ln -s ../writable/default/im-config /etc/default/im-config
+fi

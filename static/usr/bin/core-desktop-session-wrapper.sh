@@ -142,20 +142,26 @@ function fixup_xauthority() {
         fi
     done
 }
-if [ "$session_type" = "KDE" ]; then
+if [ "$session_type" = "KDE" ] || [ "$session_type" = "ubuntu:GNOME" ]; then
     # Temporary workaround until we have a better way to expose our services and targets
-    # 1. Expose our targets, services and overloads
-    rm -rf $XDG_RUNTIME_DIR/systemd/user.control
-    mkdir -p $XDG_RUNTIME_DIR/systemd
-    ln -sf /snap/plasma-core26-desktop/current/usr/lib/systemd/user $XDG_RUNTIME_DIR/systemd/user.control
-    # 2. Reload the daemon so that it picks up our changes
+    # Expose the selected content snap's user units to the host user manager.
+    if [ "$session_type" = "KDE" ]; then
+        user_unit_source=/snap/plasma-core26-desktop/current/usr/lib/systemd/user
+    else
+        user_unit_source=/snap/gnome-desktop-content/current/usr/lib/systemd/user
+    fi
+    if [ ! -d "$user_unit_source" ]; then
+        echo "missing desktop content user units: $user_unit_source" >&2
+        exit 1
+    fi
+    rm -rf "$XDG_RUNTIME_DIR/systemd/user.control"
+    mkdir -p "$XDG_RUNTIME_DIR/systemd"
+    ln -sf "$user_unit_source" "$XDG_RUNTIME_DIR/systemd/user.control"
     systemctl --user daemon-reload
-    # 3. Stop anything now masked which might have been already started
-    masked_units=`systemctl --user show --property=Id --value --state=masked`
-    for unit in $masked_units ; do
-      systemctl --user stop $unit
+    masked_units=$(systemctl --user show --property=Id --value --state=masked)
+    for unit in $masked_units; do
+        systemctl --user stop "$unit"
     done
-    # 4. Stop the xdg-desktop-portal in case it was started before the override was set
     systemctl --user stop xdg-desktop-portal
 fi
 

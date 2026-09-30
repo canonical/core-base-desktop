@@ -18,9 +18,9 @@ platforms:
 
 # NOTE: the old apt-based hooks (pre-chisel) enabled the desktop-snappers
 # PPA (core-desktop) here to get GDM/GNOME session packages. It's
-# deliberately NOT enabled yet: none of the packages this item adds
-# (im-config, libspa-0.2-bluetooth, xdg-utils, xkb-data) actually need
-# it, they're all in the regular resolute archive. Checked the PPA's real
+# deliberately NOT enabled yet: the only package retained here
+# (xkb-data) is in the regular resolute archive and is needed by the host
+# GDM greeter. Checked the PPA's real
 # published suites (http://ppa.launchpad.net/desktop-snappers/core-desktop
 # /ubuntu/dists/) - it only has focal/jammy/kinetic/mantic/noble, and its
 # "devel" alias is a stale pointer at noble from Sep 2024, never
@@ -337,19 +337,13 @@ parts:
       # No files from this step in prime
 
   desktop-packages:
-    # Packages needed for GDM/GNOME session support that come from the
-    # regular Ubuntu archive (or the desktop-snappers PPA, once later
-    # commits add packages that actually need it) rather than as chisel
-    # slices - chisel-ubuntu-core has no slice definitions for desktop
-    # packages like these, so they're fetched as ordinary .debs via
-    # snapcraft's own stage-packages mechanism instead.
+    # xkb-data is retained in the base for the host GDM greeter. The
+    # session-only packages previously staged here are supplied by the
+    # gnome-desktop-content snap instead.
     after:
       - chisel-libs
     plugin: nil
     stage-packages:
-      - im-config
-      - libspa-0.2-bluetooth
-      - xdg-utils
       - xkb-data
     override-build: |
       # stage-packages are already fetched and unpacked into
@@ -378,18 +372,18 @@ parts:
       # No files from this step in prime
 
   gdm-packages:
-    # First half of the original apt-get-in-a-hook package list from
-    # hooks/002.1-add-gdm.chroot (pre-chisel): GDM itself, Xwayland, audio
-    # (pulseaudio-utils/alsa-utils), gsound, ibus, and the Yaru theme.
+    # Host packages required by GDM and its greeter. The GNOME user-session
+    # packages now come from gnome-desktop-content.
     #
-    # Stop bundling pipewire/wireplumber/pipewire-pulse in the base
-    # image (item 13 of the rebase): sessions bring their own PipeWire
-    # via the pipewire content snap now, and
+    # Stop bundling the session's PipeWire runtime in the base: the
+    # session and its portal now use the gnome-desktop-content snap.
+    # GDM's dependency closure may still pull some client libraries, but
+    # the daemon binaries and data are not needed by the host greeter.
+    #
+    # Sessions bring their own PipeWire via the content snap, and
     # static/usr/bin/core-desktop-session-wrapper.sh symlinks the
     # session's PipeWire/PulseAudio sockets from that snap instead of
-    # the desktop session snap. Only pipewire-bin's /usr/share config is
-    # kept (see below), since clients like xdg-desktop-portal still read
-    # it directly for screensharing.
+    # the desktop session snap.
     #
     # Left out on purpose because chisel-libs already slices them (see the
     # SLICES array above) - staging the full .deb here would duplicate/
@@ -421,13 +415,13 @@ parts:
       - libcanberra-pulse
       - libsnapd-glib-2-1
       - ibus
-      # pipewire-bin's /usr/share config (needed by clients such as
-      # xdg-desktop-portal for screensharing) - everything else from
-      # it is stripped below, since sessions bring their own PipeWire
-      # server/client daemons via snap (see the "Stop bundling..."
-      # comment below for why pipewire/wireplumber/pipewire-pulse
-      # themselves aren't staged here at all).
-      - pipewire-bin
+      # Host integrations used by GDM/PAM cannot be supplied only through
+      # the confined user-session content snap.
+      - bolt
+      - fprintd
+      - libpam-fprintd
+      - libpam-gnome-keyring
+      - gnome-keyring
       # No chisel slice for this; needed at hook-run time for
       # glib-compile-schemas (used to rebuild the schema cache after the
       # wallpaper-default sed edits below). libglib2.0-bin's own
@@ -459,8 +453,8 @@ parts:
       # part/chisel-libs overlap) is resolved generically.
       "${CRAFT_PROJECT_DIR}"/tools/resolve-base-conflicts.sh "${CRAFT_PART_INSTALL}"/base
 
-      # GDM's dependency chain also stages the portal frontend. Its binary
-      # is rebuilt separately from the distro source package below.
+      # The session snap provides the portal frontend and its activation
+      # units; do not leave the host executable available for activation.
       rm -f "${CRAFT_PART_INSTALL}"/base/usr/libexec/xdg-desktop-portal
 
       # systemd (pulled in transitively, same as usr/sbin/halt et al.
@@ -474,13 +468,8 @@ parts:
       rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/system/motd-news.timer
       rm -f "${CRAFT_PART_INSTALL}"/base/etc/update-motd.d/50-motd-news
 
-      # pipewire-bin: keep only its /usr/share config (still needed by
-      # clients such as xdg-desktop-portal for screensharing), strip
-      # everything else - the actual PipeWire server/client binaries
-      # come from the pipewire content snap at runtime instead.
-      #
       # pipewire/wireplumber/pipewire-pulse themselves aren't in
-      # stage-packages above at all, but gnome-settings-daemon
+      # stage-packages above, but gnome-settings-daemon
       # (Recommends: pipewire-audio -> Depends: pipewire-pulse,
       # wireplumber) and similar transitive pulls from other packages in
       # this part still stage some of their files despite that - unlike
@@ -497,6 +486,7 @@ parts:
       rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/user/wireplumber*
       rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/sysusers.d/pipewire.conf
       rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/wireplumber
+      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/pipewire
       rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/doc/pipewire
       rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/doc/pipewire-pulse
       rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/doc/wireplumber
@@ -520,175 +510,6 @@ parts:
       rm -rf "${CRAFT_PART_INSTALL}"/base/usr/lib/*/pipewire-0.3
     override-prime: |
       # No files from this step in prime
-
-  gnome-desktop-components:
-    # Second half of the original apt-get-in-a-hook package list from
-    # hooks/002.1-add-gdm.chroot (pre-chisel): the actual Ubuntu/GNOME
-    # session and its extensions, plus fingerprint/keyring PAM modules.
-    #
-    # opensc is left out - already covered by chisel-libs' opensc_bins
-    # slice, staging the full .deb would duplicate/conflict with it.
-    after:
-      - chisel-libs
-    plugin: nil
-    stage-packages:
-      - ubuntu-session
-      - gkbd-capplet
-      - gnome-menus
-      - gnome-terminal
-      - gnome-settings-daemon
-      - gnome-shell-extension-appindicator
-      - gnome-shell-extension-desktop-icons-ng
-      - gnome-shell-extension-ubuntu-dock
-      - gnome-shell-extension-ubuntu-tiling-assistant
-      - gnome-control-center
-      - gnome-keyring
-      - fprintd
-      - libpam-fprintd
-      - bolt
-      - libpam-gnome-keyring
-      - spice-vdagent
-      - xdg-desktop-portal
-      - xdg-desktop-portal-gnome
-      - xdg-desktop-portal-gtk
-      - xdg-user-dirs-gtk
-      - alsa-ucm-conf
-    override-build: |
-      # See desktop-packages' override-build above for why this
-      # relocation is needed.
-      tmpdir="$(mktemp -d)"
-      mv "${CRAFT_PART_INSTALL}"/* "$tmpdir"/
-      mkdir -p "${CRAFT_PART_INSTALL}"/base
-      mv "$tmpdir"/* "${CRAFT_PART_INSTALL}"/base/
-      rmdir "$tmpdir"
-
-      # Same python3 stage-vs-chisel conflict as gdm-packages above (one
-      # of gnome-control-center/gnome-terminal/fprintd's dependencies
-      # pulls in python3.14-minimal), plus various other overlaps with
-      # chisel-libs (systemd units, coreutils, etc.) - see
-      # tools/resolve-base-conflicts.sh for how this is resolved
-      # generically.
-      "${CRAFT_PROJECT_DIR}"/tools/resolve-base-conflicts.sh "${CRAFT_PART_INSTALL}"/base
-
-      # Keep the Ubuntu package's data, but replace its frontend executable
-      # with the patched build from xdg-desktop-portal-patched below.
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/libexec/xdg-desktop-portal
-
-      # See gdm-packages' override-build above for why this is needed.
-      rm -f "${CRAFT_PART_INSTALL}"/base/etc/default/motd-news
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/system/motd-news.service
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/system/motd-news.timer
-      rm -f "${CRAFT_PART_INSTALL}"/base/etc/update-motd.d/50-motd-news
-
-      # This part transitively pulls in pipewire/wireplumber/
-      # pipewire-pulse too (gnome-settings-daemon recommends
-      # pipewire-audio, which depends on both) even though none of them
-      # are declared in stage-packages above - same reasoning and same
-      # cleanup as gdm-packages' override-build for item 13 of the
-      # rebase: sessions bring their own PipeWire via snap instead. Note
-      # pipewire-bin isn't staged by this part at all, so unlike
-      # gdm-packages there's no /usr/share content to keep here - strip
-      # everything these three packages ship.
-      find "${CRAFT_PART_INSTALL}"/base/usr/bin -maxdepth 1 \
-        \( -name 'pipewire*' -o -name 'pw-*' -o -name 'spa-*' \
-           -o -name 'wireplumber' -o -name 'wpctl' -o -name 'wpexec' \) \
-        -exec rm -f {} +
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/user/pipewire*
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/systemd/user/wireplumber*
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/sysusers.d/pipewire.conf
-      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/wireplumber
-      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/pipewire
-      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/doc/pipewire
-      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/doc/pipewire-pulse
-      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/share/doc/wireplumber
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/apport/package-hooks/source_pipewire.py
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/glib-2.0/schemas/org.freedesktop.pulseaudio.gschema.xml
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/lintian/overrides/wireplumber
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/lintian/overrides/pipewire-pulse
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/man/man1/pipewire-pulse.1.gz
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/bash-completion/completions/wpctl
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/share/zsh/vendor-completions/_wpctl
-      # Daemon-side plugin modules and the wireplumber library itself -
-      # see gdm-packages' override-build above for why these are dead
-      # weight without the daemon binaries, and why the client-facing
-      # libpipewire-0.3.so/gstreamer/ALSA plugins are kept instead.
-      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/lib/*/wireplumber-0.5
-      rm -f "${CRAFT_PART_INSTALL}"/base/usr/lib/*/libwireplumber-0.5.so*
-      rm -rf "${CRAFT_PART_INSTALL}"/base/usr/lib/*/pipewire-0.3
-    override-prime: |
-      # No files from this step in prime
-
-  xdg-desktop-portal-patched:
-    after:
-      - gnome-desktop-components
-    plugin: nil
-    source: .
-    build-packages:
-      - bubblewrap
-      - build-essential
-      - curl
-      - dpkg-dev
-      - libflatpak-dev
-      - libfuse3-dev
-      - libgdk-pixbuf-2.0-dev
-      - libgeoclue-2-dev
-      - libglib2.0-dev
-      - libgstreamer-plugins-base1.0-dev
-      - libgudev-1.0-dev
-      - libjson-glib-dev
-      - libpipewire-0.3-dev
-      - libsystemd-dev
-      - meson
-      - ninja-build
-      - pkg-config
-    override-build: |
-      set -eu
-
-      changelog="${CRAFT_STAGE}/base/usr/share/doc/xdg-desktop-portal/changelog.Debian.gz"
-      version="$(gzip -dc "${changelog}" | sed -n '1s/^[^(]*(\([^)]*\)).*/\1/p')"
-      if [ -z "${version}" ]; then
-        echo "Could not determine the staged xdg-desktop-portal version" >&2
-        exit 1
-      fi
-
-      source_version="$(printf '%s\n' "${version}" | cut -d- -f1)"
-      source_url="https://archive.ubuntu.com/ubuntu/pool/main/x/xdg-desktop-portal"
-      cd "${CRAFT_PART_BUILD}"
-      curl --fail --location --silent --show-error \
-        "${source_url}/xdg-desktop-portal_${version}.dsc" \
-        --output "xdg-desktop-portal_${version}.dsc"
-      curl --fail --location --silent --show-error \
-        "${source_url}/xdg-desktop-portal_${source_version}.orig.tar.xz" \
-        --output "xdg-desktop-portal_${source_version}.orig.tar.xz"
-      curl --fail --location --silent --show-error \
-        "${source_url}/xdg-desktop-portal_${version}.debian.tar.xz" \
-        --output "xdg-desktop-portal_${version}.debian.tar.xz"
-
-      source_dir="${CRAFT_PART_BUILD}/source"
-      dpkg-source --extract "xdg-desktop-portal_${version}.dsc" "${source_dir}"
-      patch --strip=1 --directory="${source_dir}" \
-        < "${CRAFT_PART_SRC}/patches/xdg-desktop-portal-defer-backend-activation.patch"
-
-      build_dir="${CRAFT_PART_BUILD}/build"
-      meson setup "${build_dir}" "${source_dir}" \
-        --prefix=/usr \
-        --libexecdir=libexec \
-        -Ddocumentation=disabled \
-        -Dflatpak-interfaces=enabled \
-        -Dgeoclue=enabled \
-        -Dgudev=enabled \
-        -Dinstalled-tests=false \
-        -Dman-pages=disabled \
-        -Dsystemd=enabled \
-        -Dtests=disabled
-      meson compile -C "${build_dir}"
-      install_root="${CRAFT_PART_BUILD}/install"
-      DESTDIR="${install_root}" meson install --no-rebuild -C "${build_dir}"
-      install -D -m 0755 \
-        "${install_root}/usr/libexec/xdg-desktop-portal" \
-        "${CRAFT_PART_INSTALL}/base/usr/libexec/xdg-desktop-portal"
-    override-prime: |
-      # No files from this step in prime; hooks flattens ${CRAFT_STAGE}/base.
 
   system-setup-tool-packages:
     # Packages for hooks/002.4-configure-system-setup-tool.chroot
@@ -726,7 +547,7 @@ parts:
       # gnome-initial-setup depends on gnome-shell (for its wizard UI),
       # which hard-depends on gstreamer1.0-pipewire -> pipewire, and
       # something in that chain also pulls in wireplumber - same
-      # reasoning and cleanup as gdm-packages/gnome-desktop-components'
+      # reasoning and cleanup as gdm-packages'
       # override-build for item 13 of the rebase: sessions bring their
       # own PipeWire via snap instead. No pipewire-bin here either, so
       # strip everything these packages ship.
@@ -935,8 +756,6 @@ parts:
       - chisel-libs
       - desktop-packages
       - gdm-packages
-      - gnome-desktop-components
-      - xdg-desktop-portal-patched
       - system-setup-tool-packages
       - locale-packages
       - snapd-files

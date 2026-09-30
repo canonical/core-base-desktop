@@ -5,10 +5,11 @@ set -e
 # Note: this used to apt-get install GDM/GNOME/PAM packages here. Under
 # chisel there's no apt/dpkg in the build chroot at all - those packages
 # are now fetched via snapcraft's stage-packages mechanism (see the
-# gdm-packages and gnome-desktop-components parts in snapcraft.yaml) and
+# gdm-packages part in snapcraft.yaml) and
 # are already unpacked into the rootfs by the time this hook runs. This
 # hook now only does the post-install configuration that used to follow
-# those apt-get calls.
+# those apt-get calls. Session-only packages are provided by the
+# gnome-desktop-content snap.
 
 # Remove setuid from some executables we're not using. Note: chisel's
 # polkitd slices (bins/daemon/services - see snapcraft.yaml) deliberately
@@ -57,12 +58,98 @@ rm -f /usr/lib/systemd/user/org.freedesktop.IBus.session.generic.service
 rm -f /usr/lib/systemd/user/gnome-session.target.wants/org.freedesktop.IBus.session.GNOME.service
 rm -f /usr/lib/systemd/user/colord-session.service
 
+# LocalSearch and TinySPARQL are user-session services supplied by
+# gnome-desktop-content. The host GDM greeter does not use file indexing
+# or the Tracker portal, so remove their package payload from the base.
+rm -f /usr/bin/localsearch /usr/bin/tinysparql
+rm -f /usr/libexec/localsearch* /usr/libexec/tinysparql*
+rm -rf /usr/lib/*/localsearch-3.0 /usr/lib/*/tinysparql-3.0
+rm -f /usr/lib/*/libtinysparql-3.0.so*
+rm -f /usr/lib/systemd/user/localsearch*.service
+rm -f /usr/lib/systemd/user/tinysparql-xdg-portal-3.service
+rm -f /usr/share/dbus-1/services/org.freedesktop.LocalSearch3*.service
+rm -f /usr/share/dbus-1/services/org.freedesktop.Tracker3*.service
+rm -f /usr/share/dbus-1/services/org.freedesktop.portal.Tracker.service
+rm -f /usr/share/dbus-1/interfaces/org.freedesktop.Tracker3*.xml
+rm -f /usr/share/glib-2.0/schemas/org.freedesktop.Tracker3.*.gschema.xml
+rm -f /usr/share/glib-2.0/schemas/org.freedesktop.TrackerMiners3.enums.xml
+rm -rf /usr/share/doc/localsearch /usr/share/doc/tinysparql
+rm -rf /usr/share/doc/libtinysparql-3.0-0
+rm -rf /usr/share/bug/localsearch /usr/share/bug/tinysparql
+rm -f /usr/share/lintian/overrides/localsearch
+rm -f /usr/share/bash-completion/completions/localsearch
+rm -f /usr/share/bash-completion/completions/tinysparql
+rm -f /usr/share/man/man1/localsearch*.gz
+rm -f /usr/share/man/man1/tinysparql*.gz
+rm -f /usr/lib/sysctl.d/30-localsearch.conf
+rm -f /etc/xdg/autostart/localsearch-3.desktop
+
+# The Settings app, portal backends, and Bluetooth SPA modules are
+# supplied by gnome-desktop-content and are not used by the host greeter.
+rm -f /usr/bin/gnome-control-center
+rm -f /usr/libexec/gnome-control-center*
+rm -f /usr/libexec/xdg-desktop-portal
+rm -f /usr/libexec/xdg-desktop-portal-gnome
+rm -f /usr/libexec/xdg-desktop-portal-gtk
+rm -f /usr/libexec/xdg-desktop-portal-rewrite-launchers
+rm -f /usr/libexec/xdg-document-portal /usr/libexec/xdg-permission-store
+rm -f /usr/lib/systemd/user/xdg-desktop-portal.service
+rm -f /usr/lib/systemd/user/xdg-desktop-portal-gnome.service
+rm -f /usr/lib/systemd/user/xdg-desktop-portal-gtk.service
+rm -f /usr/lib/systemd/user/xdg-document-portal.service
+rm -f /usr/lib/systemd/user/xdg-permission-store.service
+rm -rf /usr/lib/*/spa-0.2/bluez5 /usr/share/spa-0.2/bluez5
+rm -rf /usr/share/doc/gnome-control-center /usr/share/doc/gnome-control-center-data
+rm -f /usr/share/lintian/overrides/gnome-control-center
+rm -f /usr/share/dbus-1/services/org.freedesktop.impl.portal.desktop.gnome.service
+rm -f /usr/share/dbus-1/services/org.freedesktop.impl.portal.desktop.gtk.service
+rm -f /usr/share/dbus-1/services/org.freedesktop.impl.portal.PermissionStore.service
+rm -f /usr/share/dbus-1/services/org.freedesktop.impl.portal.Secret.service
+rm -f /usr/share/dbus-1/services/org.freedesktop.portal.Desktop.service
+rm -f /usr/share/dbus-1/services/org.freedesktop.portal.Documents.service
+rm -f /usr/share/dbus-1/services/org.gnome.Settings*.service
+rm -f /usr/share/dbus-1/services/org.gnome.ControlCenter*.service
+rm -rf /usr/share/xdg-desktop-portal/portals
+rm -rf /usr/share/gnome-control-center
+rm -f /usr/share/applications/org.gnome.Settings.desktop
+rm -f /usr/share/polkit-1/rules.d/gnome-control-center.rules
+rm -f /usr/share/metainfo/org.gnome.Settings.appdata.xml
+rm -f /usr/share/man/man1/gnome-control-center.1.gz
+rm -f /usr/bin/nautilus /usr/bin/nautilus-autorun-software
+rm -rf /usr/lib/*/nautilus
+rm -f /usr/lib/*/libnautilus-extension.so*
+rm -rf /usr/share/nautilus
+rm -rf /usr/share/doc/nautilus /usr/share/doc/nautilus-data
+rm -rf /usr/share/doc/libnautilus-extension4
+rm -f /usr/share/apport/package-hooks/source_nautilus.py
+rm -f /usr/share/applications/nautilus-autorun-software.desktop
+rm -f /usr/share/man/man1/nautilus*.gz
+rm -f /usr/share/glib-2.0/schemas/org.gnome.nautilus.gschema.xml
+rm -f /usr/share/applications/xdg-desktop-portal-gnome.desktop
+rm -f /usr/share/applications/xdg-desktop-portal-gtk.desktop
+rm -rf /usr/share/xdg-desktop-portal/gnome-portals.conf
+
+# These user-session extensions are provided by gnome-desktop-content.
+# The host GDM greeter runs GNOME Shell's dedicated greeter mode instead.
+for extension in \
+    ding@rastersoft.com \
+    snapd-prompting@canonical.com \
+    snapd-search-provider@canonical.com \
+    tiling-assistant@ubuntu.com \
+    ubuntu-appindicators@ubuntu.com \
+    ubuntu-dock@ubuntu.com \
+    web-search-provider@ubuntu.com
+do
+    rm -rf "/usr/share/gnome-shell/extensions/${extension}"
+done
+
 # GNOME Shell activates these snap-provided services in the greeter
 # session. Their snap confinement rejects GDM's dynamic home under
-# /run/gdm3/home as outside /home, so they fail repeatedly and tear down
-# the first greeter session. They are optional in GDM mode but remain
-# available in regular user sessions.
+# /run/gdm3/home as outside /home. In particular, the PermissionStore
+# activation times out in the greeter. These services are optional in
+# GDM mode but remain available in regular user sessions.
 for service in \
+    snap.ubuntu-desktop-session.xdg-permission-store.service \
     snap.ubuntu-desktop-session.screencast-service.service \
     snap.ubuntu-desktop-session.ibus-portal-service.service
 do
@@ -198,9 +285,6 @@ chmod a+x /usr/libexec/gsd-xsettings
 sed -i "/^ReadWritePaths=/ a \\  /var/lib/extrausers/ \\\\" \
     /usr/lib/systemd/system/accounts-daemon.service
 
-# Hide gnome-terminal by default
-sed -i 's/OnlyShowIn=/NoDisplay=true\nOnlyShowIn=/g' /usr/share/applications/org.gnome.Terminal.desktop
-
 # change default wallpapers
 cp /usr/share/gnome-background-properties/ubuntu-wallpapers.xml /usr/share/gnome-background-properties/ubuntu-core-desktop-wallpapers.xml
 sed -i 's/warty-final-ubuntu.png/ubuntu-core-desktop-l.png/g' /usr/share/gnome-background-properties/ubuntu-core-desktop-wallpapers.xml
@@ -234,7 +318,9 @@ rm -f /usr/lib/netplan/00-network-manager-all.yaml
 # Remove regular Ubuntu sessions, so only confined session is available
 rm -f /usr/share/wayland-sessions/ubuntu.desktop
 rm -f /usr/share/wayland-sessions/ubuntu-wayland.desktop
+rm -f /usr/share/wayland-sessions/ubuntu-desktop-session.desktop
 rm -f /usr/share/xsessions/ubuntu-xorg.desktop
+rm -f /usr/share/gnome-session/sessions/ubuntu.session
 
 # Move GDM config to writable directory
 mkdir -p /etc/writable/gdm3
