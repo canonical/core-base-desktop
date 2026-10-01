@@ -64,6 +64,12 @@ sed -i 's/^passwd:\(.*\)files/passwd:\1files systemd/' /etc/nsswitch.conf
 sed -i 's/^group:\(.*\)extrausers/group:\1extrausers systemd/' /etc/nsswitch.conf
 sed -i 's/^shadow:\(.*\)files/shadow:\1files systemd/' /etc/nsswitch.conf
 
+# systemd-userdbd is socket-activated. Stage-packages does not run the
+# package's enablement scripts, so enable its socket explicitly.
+mkdir -p /etc/systemd/system/sockets.target.wants
+ln -sfn /usr/lib/systemd/system/systemd-userdbd.socket \
+    /etc/systemd/system/sockets.target.wants/systemd-userdbd.socket
+
 # verify pam_extrausers.so is available
 grep pam_extrausers.so /etc/pam.d/common-password
 grep pam_extrausers.so /etc/pam.d/common-auth

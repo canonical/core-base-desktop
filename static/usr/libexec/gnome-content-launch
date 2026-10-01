@@ -3,14 +3,54 @@ set -eu
 
 content_root=/snap/gnome-desktop-content/current
 
-if [ "${1-}" = "--content" ]; then
-    if [ "$#" -lt 3 ]; then
-        echo "usage: $0 --content CONTENT_EXECUTABLE CORE_FALLBACK [ARGS...]" >&2
+if [ "${1-}" = "--session-dispatch" ]; then
+    if [ "$#" -lt 2 ]; then
+        echo "usage: $0 --session-dispatch SESSION_APP [ARGS...]" >&2
+        exit 2
+    fi
+    session_app=$2
+    shift 2
+    case "$session_app" in
+        gnome-session-service)
+            target="$content_root/usr/libexec/gnome-session-service"
+            snap_app=/snap/bin/ubuntu-desktop-session.gnome-session-service
+            ;;
+        gnome-shell)
+            target="$content_root/usr/bin/gnome-shell"
+            snap_app=/snap/bin/ubuntu-desktop-session.gnome-shell
+            ;;
+        *)
+            echo "unsupported GNOME session app: $session_app" >&2
+            exit 2
+            ;;
+    esac
+
+    gdm_gid=$(getent group gdm | cut -d: -f3) || {
+        echo "cannot resolve the gdm group" >&2
+        exit 1
+    }
+    if [ -z "$gdm_gid" ]; then
+        echo "the gdm group has no numeric GID" >&2
+        exit 1
+    fi
+    case " $(id -G) " in
+        *" $gdm_gid "*)
+            ;;
+        *)
+            if [ ! -x "$snap_app" ]; then
+                echo "confined session app is unavailable: $snap_app" >&2
+                exit 127
+            fi
+            exec "$snap_app" "$@"
+            ;;
+    esac
+elif [ "${1-}" = "--content" ]; then
+    if [ "$#" -lt 2 ]; then
+        echo "usage: $0 --content CONTENT_EXECUTABLE [ARGS...]" >&2
         exit 2
     fi
     target=$2
-    fallback=$3
-    shift 3
+    shift 2
 else
     alias_path=$0
     # Image assembly wraps gnome-session and preserves this launcher as
@@ -29,10 +69,9 @@ else
             exit 2
             ;;
     esac
-    fallback="${alias_path}.core26"
-
     case "$alias_path" in
-        /usr/libexec/gdm-*)
+        # GNOME session shutdown is controlled by the host user manager.
+        /usr/libexec/gdm-*|/usr/bin/dconf|/usr/libexec/gnome-session-ctl)
             ;;
         *)
             account_entry="$(getent passwd "$(id -u)")" || {
@@ -44,9 +83,6 @@ else
                 gdm|gdm-greeter|gdm-greeter-[0-9]*)
                     ;;
                 *)
-                    if [ -x "$fallback" ]; then
-                        exec "$fallback" "$@"
-                    fi
                     echo "refusing content runtime for non-GDM account '$account': $alias_path" >&2
                     exit 126
                     ;;
@@ -63,10 +99,7 @@ else
 fi
 
 if [ ! -x "$target" ]; then
-    if [ -x "$fallback" ]; then
-        exec "$fallback" "$@"
-    fi
-    echo "content executable is unavailable and no core fallback exists: $target" >&2
+    echo "content executable is unavailable: $target" >&2
     exit 127
 fi
 
@@ -98,6 +131,7 @@ fi
 typelib_paths=
 for path in \
     "$content_root"/usr/lib/*-linux-gnu/girepository-1.0 \
+    "$content_root"/usr/lib/*-linux-gnu/gjs/girepository-1.0 \
     "$content_root"/usr/lib/*-linux-gnu/mutter-* \
     "$content_root"/usr/lib/girepository-1.0 \
     "$content_root"/usr/lib/gnome-shell \
@@ -116,10 +150,32 @@ if [ -n "$typelib_paths" ]; then
     export GI_TYPELIB_PATH
 fi
 
+pixbuf_cache=
+for path in \
+    "$content_root"/usr/lib/*-linux-gnu/gdk-pixbuf-2.0/2.10.0/loaders.cache
+do
+    if [ -f "$path" ]; then
+        pixbuf_cache=$path
+        break
+    fi
+done
+if [ -z "$pixbuf_cache" ]; then
+    echo "content GDK Pixbuf loader cache is unavailable" >&2
+    exit 1
+fi
+GDK_PIXBUF_MODULE_FILE=$pixbuf_cache
+export GDK_PIXBUF_MODULE_FILE
+
 # GDM's session helper can pass its environment into the logged-in user's
 # systemd manager. Leave XDG_DATA_DIRS and GIO_EXTRA_MODULES untouched so
 # the confined session keeps its own content-snap data and GIO modules.
 GSETTINGS_SCHEMA_DIR="$content_root/usr/share/glib-2.0/schemas"
 export GSETTINGS_SCHEMA_DIR
+
+if [ "$target" = "$content_root/usr/libexec/gdm-wayland-session" ] &&
+    [ "${DESKTOP_SESSION-}" = "gnome-greeter" ] &&
+    [ "${1-}" = "gnome-session" ]; then
+    set -- "gnome-session --session=gnome-login"
+fi
 
 exec "$target" "$@"

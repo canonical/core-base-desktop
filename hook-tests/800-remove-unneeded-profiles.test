@@ -12,17 +12,6 @@ allowed_profs[systemd-coredump]=""
 allowed_profs[systemd-detect-virt]=""
 allowed_profs[unix-chkpwd]=""
 allowed_profs[who]=""
-# fuse3 (providing /usr/bin/fusermount3) is now a real, present binary -
-# pulled in transitively by the desktop packages added in this rebase
-# (xdg-desktop-portal/gvfs-style userspace mounts need it). The
-# 800-remove-unneeded-profiles.chroot hook correctly keeps its apparmor
-# profile since the binary genuinely exists now; this allowlist just
-# needs to catch up.
-allowed_profs[fusermount3]=""
-# alsa-utils (added for the desktop session's audio controls, item 13 of
-# the rebase) provides a real /usr/bin/alsamixer binary too - same
-# reasoning as fusermount3 above, this allowlist just needs to catch up.
-allowed_profs[alsamixer]=""
 
 num_prof=0
 

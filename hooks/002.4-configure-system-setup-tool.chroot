@@ -2,8 +2,9 @@
 
 set -e
 
-# gnome-initial-setup and provd are staged via the
-# system-setup-tool-packages snapcraft part instead of apt-get here.
+# provd is staged via the system-setup-tool-packages snapcraft part.
+# GNOME initial-setup's profile and mode data are static host integration;
+# its executable and GNOME Shell dependency closure are not staged.
 
 # Configure provd
 mkdir -p /usr/share/desktop-provision
@@ -43,6 +44,8 @@ rm -f /usr/share/gnome-initial-setup/vendor.conf
 rm -rf /usr/share/doc/gnome-initial-setup
 rm -f /usr/libexec/gnome-initial-setup
 rm -f /usr/libexec/gnome-initial-setup-copy-worker
+rm -f /usr/libexec/gnome-initial-setup-set-debian-keyboard
+rm -f /usr/libexec/gnome-initial-setup-wrapper
 rm -f /usr/lib/systemd/user/gnome-initial-setup-copy-worker.service
 rm -f /usr/lib/systemd/user/gnome-initial-setup-first-login.service
 rm -f /usr/lib/systemd/user/gnome-initial-setup-upgrade-login.service
@@ -51,13 +54,21 @@ rm -f /etc/xdg/autostart/gnome-initial-setup-first-login.desktop
 rm -f /usr/share/applications/gnome-initial-setup.desktop
 rm -f /usr/share/ubuntu/applications/gnome-initial-setup.desktop
 
-# configure the Ubuntu theme colors for the initial session
-sed -i '2 i "stylesheetName": "Yaru/gnome-shell.css",' /usr/share/gnome-shell/modes/initial-setup.json
-sed -i '3 i "colorScheme": "prefer-light",' /usr/share/gnome-shell/modes/initial-setup.json
-sed -i '4 i "themeResourceName": "theme/Yaru/gnome-shell-theme.gresource",' /usr/share/gnome-shell/modes/initial-setup.json
-sed -i '5 i "iconsResourceName": "theme/Yaru/gnome-shell-icons.gresource",' /usr/share/gnome-shell/modes/initial-setup.json
-
+mkdir -p /usr/share/gnome-initial-setup
+test -f /usr/share/dconf/profile/gnome-initial-setup
 mv /init-default.compiled /usr/share/gnome-initial-setup/initial-setup-dconf-defaults
+
+# The GNOME initial-setup UI is not used: ubuntu-desktop-init provides the
+# first-boot wizard, and the GNOME runtime is supplied by the content snap.
+# Keep the dconf profile/defaults above, but drop the UI-only WebKit and
+# software-rendering payload pulled in by gnome-initial-setup's dependencies.
+rm -f /usr/lib/x86_64-linux-gnu/libwebkitgtk-6.0.so.4*
+rm -rf /usr/lib/x86_64-linux-gnu/webkitgtk-6.0
+rm -f /usr/lib/x86_64-linux-gnu/libjavascriptcoregtk-6.0.so.1*
+rm -f /usr/lib/x86_64-linux-gnu/libLLVM-21.so
+rm -f /usr/lib/x86_64-linux-gnu/libLLVM.so.21.*
+rm -f /usr/lib/x86_64-linux-gnu/libgallium-*.so
+rm -f /usr/lib/x86_64-linux-gnu/dri/*_drv_video.so
 
 # The content snap supplies the user-session Settings app, portal
 # translations, and LocalSearch translations. The host GDM greeter does

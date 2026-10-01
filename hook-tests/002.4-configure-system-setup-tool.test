@@ -1,0 +1,22 @@
+#!/bin/bash -e
+
+test -x usr/libexec/provd
+test -f usr/share/dconf/profile/gnome-initial-setup
+test -f usr/share/gnome-initial-setup/initial-setup-dconf-defaults
+
+for path in \
+    usr/lib/x86_64-linux-gnu/libwebkitgtk-6.0.so.4 \
+    usr/lib/x86_64-linux-gnu/libwebkitgtk-6.0.so.4.* \
+    usr/lib/x86_64-linux-gnu/webkitgtk-6.0 \
+    usr/lib/x86_64-linux-gnu/libjavascriptcoregtk-6.0.so.1 \
+    usr/lib/x86_64-linux-gnu/libjavascriptcoregtk-6.0.so.1.* \
+    usr/lib/x86_64-linux-gnu/libLLVM-21.so \
+    usr/lib/x86_64-linux-gnu/libLLVM.so.21.* \
+    usr/lib/x86_64-linux-gnu/libgallium-*.so \
+    usr/lib/x86_64-linux-gnu/dri/*_drv_video.so
+do
+    if [ -e "$path" ] || [ -L "$path" ]; then
+        printf 'Unneeded provisioning UI payload remains: %s\n' "$path" >&2
+        exit 1
+    fi
+done

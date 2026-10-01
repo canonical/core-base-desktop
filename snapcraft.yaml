@@ -372,8 +372,9 @@ parts:
       # No files from this step in prime
 
   gdm-packages:
-    # Host packages required by GDM and its greeter. The GNOME user-session
-    # packages now come from gnome-desktop-content.
+    # Host integrations needed by the unconfined GDM service. The GDM
+    # daemon, greeter, session runtime, and desktop packages come from
+    # gnome-desktop-content.
     #
     # Stop bundling the session's PipeWire runtime in the base: the
     # session and its portal now use the gnome-desktop-content snap.
@@ -398,25 +399,13 @@ parts:
       - chisel-libs
     plugin: nil
     stage-packages:
-      - gdm3
-      - xwayland
-      - libgl1-mesa-dri
-      - zenity
-      - yaru-theme-gtk
-      - yaru-theme-gnome-shell
-      - yaru-theme-icon
-      - ubuntu-settings
-      - xdg-user-dirs
-      - pulseaudio-utils
-      - alsa-utils
-      - libgsound0
-      - gsound-tools
-      - gir1.2-gsound-1.0
-      - libcanberra-pulse
-      - libsnapd-glib-2-1
-      - ibus
-      # Host integrations used by GDM/PAM cannot be supplied only through
-      # the confined user-session content snap.
+      # Authentication modules and services used by host-run GDM cannot
+      # be supplied only through the confined user-session content snap.
+      # GDM's dynamic greeter account is resolved through systemd userdb;
+      # nss-systemd and the userdb daemon/socket must remain host-visible.
+      - libnss-systemd
+      - systemd-userdbd
+      - accountsservice
       - bolt
       - fprintd
       - libpam-fprintd
@@ -511,19 +500,65 @@ parts:
     override-prime: |
       # No files from this step in prime
 
-  system-setup-tool-packages:
-    # Packages for hooks/002.4-configure-system-setup-tool.chroot
-    # (pre-chisel: apt-get install --no-install-recommends -y
-    # gnome-initial-setup provd, run directly in that hook). We only
-    # want gnome-initial-setup for its theming/dconf-defaults data and
-    # provd for the whitelabel-configurable onboarding wizard; the
-    # actual "run at first login" behaviour is disabled/removed by the
-    # hook, in favour of the ubuntu-desktop-init snap.
+  gdm-host-integration:
+    # Keep only host-owned service, PAM, configuration, and D-Bus policy
+    # files from gdm3. Its executable and runtime dependency closure are
+    # supplied by gnome-desktop-content.
     after:
       - chisel-libs
     plugin: nil
     stage-packages:
-      - gnome-initial-setup
+      - gdm3
+    override-build: |
+      set -eu
+      root="${CRAFT_PART_INSTALL}"
+      mkdir -p \
+        "$root/base/etc/pam.d" \
+        "$root/base/usr/lib/systemd/system" \
+        "$root/base/usr/lib/sysusers.d" \
+        "$root/base/usr/share/dbus-1/system.d"
+      cp -a "$root/etc/gdm3" "$root/base/etc/"
+      cp -a "$root"/etc/pam.d/gdm-* "$root/base/etc/pam.d/"
+      cp -a "$root/usr/lib/systemd/system/gdm.service" \
+        "$root/base/usr/lib/systemd/system/"
+      cp -a "$root/usr/lib/systemd/system/gdm3.service" \
+        "$root/base/usr/lib/systemd/system/"
+      cp -a "$root/usr/lib/sysusers.d/gdm3.conf" \
+        "$root/base/usr/lib/sysusers.d/"
+      cp -a "$root/usr/share/dbus-1/system.d/gdm.conf" \
+        "$root/base/usr/share/dbus-1/system.d/"
+      pam_gdm_module="$(find "$root/usr/lib" -type f \
+        -path '*/security/pam_gdm.so' -print -quit)"
+      if [ -z "$pam_gdm_module" ]; then
+        echo "gdm3 stage package did not provide pam_gdm.so" >&2
+        exit 1
+      fi
+      mkdir -p "$root/base/usr/lib/security"
+      cp -a "$pam_gdm_module" "$root/base/usr/lib/security/pam_gdm.so"
+
+      for path in usr/share/dbus-1/system-services/org.gnome.DisplayManager.service; do
+        source="$root/$path"
+        if [ -e "$source" ] || [ -L "$source" ]; then
+          mkdir -p "$root/base/$(dirname "$path")"
+          cp -a "$source" "$root/base/$path"
+        fi
+      done
+
+      find "$root" -mindepth 1 -maxdepth 1 ! -name base \
+        -exec rm -rf {} +
+      "${CRAFT_PROJECT_DIR}"/tools/resolve-base-conflicts.sh "$root/base"
+    override-prime: |
+      # No files from this step in prime
+
+  system-setup-tool-packages:
+    # provd supplies the whitelabel-configurable onboarding wizard.
+    # GNOME initial-setup's small profile/defaults data is kept as static
+    # host integration; its executable and GNOME Shell dependency closure
+    # are not needed because ubuntu-desktop-init supplies the wizard.
+    after:
+      - chisel-libs
+    plugin: nil
+    stage-packages:
       - provd
     override-build: |
       # See desktop-packages' override-build above for why this
@@ -756,6 +791,7 @@ parts:
       - chisel-libs
       - desktop-packages
       - gdm-packages
+      - gdm-host-integration
       - system-setup-tool-packages
       - locale-packages
       - snapd-files

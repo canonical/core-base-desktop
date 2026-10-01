@@ -4,8 +4,24 @@ launcher=usr/libexec/gnome-content-launch
 test -x "$launcher"
 grep -Fqx '            target="$content_root/usr/${alias_path#/usr/}"' "$launcher"
 grep -Fqx '                gdm|gdm-greeter|gdm-greeter-[0-9]*)' "$launcher"
+grep -Fqx '        /usr/libexec/gdm-*|/usr/bin/dconf|/usr/libexec/gnome-session-ctl)' "$launcher"
 grep -Fq '"$content_root"/usr/lib/gnome-shell \' "$launcher"
 grep -Fq '"$content_root"/usr/lib/*-linux-gnu/mutter-* \' "$launcher"
+grep -Fq '"$content_root"/usr/lib/*-linux-gnu/gjs/girepository-1.0 \' "$launcher"
+grep -Fq 'GDK_PIXBUF_MODULE_FILE=$pixbuf_cache' "$launcher"
+grep -Fq 'if [ "${1-}" = "--session-dispatch" ]; then' "$launcher"
+grep -Fq 'gnome-session-service)' "$launcher"
+grep -Fq 'gnome-shell)' "$launcher"
+grep -Fq 'gdm_gid=$(getent group gdm | cut -d: -f3)' "$launcher"
+grep -Fq '[ "$target" = "$content_root/usr/libexec/gdm-wayland-session" ] &&' "$launcher"
+grep -Fq '[ "${DESKTOP_SESSION-}" = "gnome-greeter" ] &&' "$launcher"
+grep -Fq 'set -- "gnome-session --session=gnome-login"' "$launcher"
+! grep -Fq 'CORE_FALLBACK' "$launcher"
+
+grep -Fqx 'ExecStart=/usr/libexec/gnome-content-launch --session-dispatch gnome-session-service --session=%i' \
+    usr/lib/systemd/user/gnome-session-manager@ubuntu.service.d/core-override.conf
+grep -Fqx 'ExecStart=/usr/libexec/gnome-content-launch --session-dispatch gnome-shell --mode=%i' \
+    usr/lib/systemd/user/org.gnome.Shell@ubuntu.service.d/core-override.conf
 
 for executable in \
     usr/bin/dconf \
@@ -40,39 +56,103 @@ for executable in \
 do
     test -L "$executable"
     test "$(readlink "$executable")" = "/$launcher"
-    test -x "${executable}.core26"
+    test ! -e "${executable}.core26"
 done
 
-for directory in gdm gnome-settings-daemon; do
+for directory in gdm gnome-settings-daemon gnome-shell; do
     test -L "usr/share/$directory"
     test "$(readlink "usr/share/$directory")" = \
         "/snap/gnome-desktop-content/current/usr/share/$directory"
-    test -d "usr/share/$directory.core26"
+    test ! -e "usr/share/$directory.core26"
 done
 
+test ! -e usr/share/gnome-shell/theme.core26
 test -L usr/lib/gnome-shell
 test "$(readlink usr/lib/gnome-shell)" = \
     /snap/gnome-desktop-content/current/usr/lib/gnome-shell
-test -d usr/lib/gnome-shell.core26
+test ! -e usr/lib/gnome-shell.core26
 
 test -L usr/lib/x86_64-linux-gnu/mutter-18
 test "$(readlink usr/lib/x86_64-linux-gnu/mutter-18)" = \
     /snap/gnome-desktop-content/current/usr/lib/x86_64-linux-gnu/mutter-18
-test -d usr/lib/x86_64-linux-gnu/mutter-18.core26
-
-test -L usr/share/gnome-shell/theme
-test "$(readlink usr/share/gnome-shell/theme)" = \
-    /snap/gnome-desktop-content/current/usr/share/gnome-shell/theme
-test -d usr/share/gnome-shell/theme.core26
-test -f usr/share/gnome-shell/modes/initial-setup.json
+test ! -e usr/lib/x86_64-linux-gnu/mutter-18.core26
 
 test -L usr/share/gnome-session/sessions/gnome-login.session
 test "$(readlink usr/share/gnome-session/sessions/gnome-login.session)" = \
     /snap/gnome-desktop-content/current/usr/share/gnome-session/sessions/gnome-login.session
-test -f usr/share/gnome-session/sessions/gnome-login.session.core26
+test ! -e usr/share/gnome-session/sessions/gnome-login.session.core26
+# The host does not need ubuntu.session; the confined user session supplies it.
 test ! -e usr/share/gnome-session/sessions/ubuntu.session
+for unit in \
+    gnome-session-basic-services.target \
+    gnome-session-initialized.target \
+    gnome-session-manager.target \
+    gnome-session-manager@.service \
+    gnome-session-monitor.service \
+    gnome-session-pre.target \
+    gnome-session-restart-dbus.service \
+    gnome-session-services.target \
+    gnome-session-shutdown.target \
+    gnome-session-signal-init.service \
+    gnome-session-x11-services-ready.target \
+    gnome-session-x11-services.target \
+    gnome-session.target \
+    gnome-session@.target \
+    org.gnome.Shell-disable-extensions.service \
+    org.gnome.Shell@.service
+do
+    test -L "usr/lib/systemd/user/$unit"
+    test "$(readlink "usr/lib/systemd/user/$unit")" = \
+        "/snap/gnome-desktop-content/current/usr/lib/systemd/user/$unit"
+done
+for component in \
+    A11ySettings \
+    Color \
+    Datetime \
+    Housekeeping \
+    Keyboard \
+    MediaKeys \
+    Power \
+    PrintNotifications \
+    Rfkill \
+    ScreensaverProxy \
+    Sharing \
+    Smartcard \
+    Sound \
+    UsbProtection \
+    Wwan \
+    XSettings
+do
+    for type in target service; do
+        unit="org.gnome.SettingsDaemon.$component.$type"
+        test -L "usr/lib/systemd/user/$unit"
+        test "$(readlink "usr/lib/systemd/user/$unit")" = \
+            "/snap/gnome-desktop-content/current/usr/lib/systemd/user/$unit"
+    done
+done
+for dropin in \
+    gnome-session@gnome-login.target.d/gnome-login.session.conf \
+    gnome-session@ubuntu.target.d/ubuntu.session.conf
+do
+    test -L "usr/lib/systemd/user/$dropin"
+    test "$(readlink "usr/lib/systemd/user/$dropin")" = \
+        "/snap/gnome-desktop-content/current/usr/lib/systemd/user/$dropin"
+done
+
+test ! -e usr/sbin/gdm3
+test ! -e usr/bin/gdm-config
+test ! -e usr/libexec/gnome-shell-perf-helper
+test ! -e usr/share/gdm.core26
+test -f usr/lib/systemd/system/gdm.service
+test -L usr/lib/systemd/system/gdm3.service
+test -d etc/gdm3
+test -f etc/pam.d/gdm-password
+test -f usr/share/dbus-1/system.d/gdm.conf
+test -f usr/lib/sysusers.d/gdm3.conf
+test -f usr/share/dconf/profile/gnome-initial-setup
+test -f usr/share/gnome-initial-setup/initial-setup-dconf-defaults
 
 dropin=etc/systemd/system/gdm.service.d/50-gnome-content.conf
-grep -Fqx 'ExecStartPre=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/share/gdm/generate-config /usr/share/gdm.core26/generate-config' "$dropin"
-grep -Fqx 'ExecStart=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/sbin/gdm3 /usr/sbin/gdm3.core26' "$dropin"
+grep -Fqx 'ExecStartPre=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/share/gdm/generate-config' "$dropin"
+grep -Fqx 'ExecStart=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/sbin/gdm3' "$dropin"
 grep -Fqx 'ExecReload=/bin/kill -SIGHUP $MAINPID' "$dropin"

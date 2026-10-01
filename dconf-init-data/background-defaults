@@ -1,7 +1,7 @@
 [org/gnome/desktop/background]
 picture-options="zoom"
-picture-uri="file:///usr/share/backgrounds/ubuntu-core-desktop-l.png"
-picture-uri-dark="file:///usr/share/backgrounds/ubuntu-core-desktop-d.png"
+picture-uri="file:///usr/share/backgrounds/warty-final-ubuntu.png"
+picture-uri-dark="file:///usr/share/backgrounds/ubuntu-wallpaper-d.png"
 
 # original default values obtained from https://gitlab.gnome.org/GNOME/gnome-initial-setup
 [org/gnome/desktop/a11y]

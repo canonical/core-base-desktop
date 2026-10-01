@@ -3,9 +3,7 @@
 content_root=/snap/gnome-desktop-content/current
 launcher=/usr/libexec/gnome-content-launch
 
-# Keep the package-provided host units, but make their greeter commands
-# dispatch to the content runtime. Non-GDM user sessions retain the core
-# executable fallback until the cleanup stage.
+# Host aliases and data paths must not retain a core fallback.
 for executable in \
     /usr/bin/dconf \
     /usr/bin/gnome-session \
@@ -38,86 +36,115 @@ for executable in \
     /usr/libexec/gsd-xsettings
 do
     if [ -e "$executable" ] || [ -L "$executable" ]; then
-        if [ -e "${executable}.core26" ] || [ -L "${executable}.core26" ]; then
-            echo "core fallback already exists: ${executable}.core26" >&2
-            exit 1
-        fi
-        mv "$executable" "${executable}.core26"
+        rm -f "$executable"
     fi
-    ln -sfn "$launcher" "$executable"
+    ln -s "$launcher" "$executable"
 done
 
-# GDM and GNOME Shell use compiled-in /usr/share paths, so expose the
-# content snap's data at the host paths while retaining Stage 3 copies.
-for directory in \
-    gdm \
-    gnome-settings-daemon
-do
-    host_path="/usr/share/$directory"
+link_content_path() {
+    host_path=$1
+    content_path=$2
     if [ -e "$host_path" ] || [ -L "$host_path" ]; then
-        if [ -e "${host_path}.core26" ] || [ -L "${host_path}.core26" ]; then
-            echo "core data fallback already exists: ${host_path}.core26" >&2
-            exit 1
-        fi
-        mv "$host_path" "${host_path}.core26"
+        rm -rf "$host_path"
     fi
-    ln -sfn "$content_root/usr/share/$directory" "$host_path"
+    mkdir -p "$(dirname "$host_path")"
+    ln -s "$content_path" "$host_path"
+}
+
+rm -f /usr/sbin/gdm3 /usr/bin/gdm-config
+rm -f /usr/bin/gnome-shell-extension-tool /usr/bin/gnome-shell-test-tool
+rm -f /usr/libexec/gnome-shell*
+for directory in /usr/lib/gnome-settings-daemon-*; do
+    if [ -e "$directory" ] || [ -L "$directory" ]; then
+        rm -rf "$directory"
+    fi
 done
 
-# Keep the host library path for package consumers, but make it resolve to
-# the same Shell libraries as the greeter's content-snap executable.
-host_shell_libdir=/usr/lib/gnome-shell
-if [ -e "$host_shell_libdir" ] || [ -L "$host_shell_libdir" ]; then
-    if [ -e "${host_shell_libdir}.core26" ] || [ -L "${host_shell_libdir}.core26" ]; then
-        echo "core library fallback already exists: ${host_shell_libdir}.core26" >&2
-        exit 1
-    fi
-    mv "$host_shell_libdir" "${host_shell_libdir}.core26"
-fi
-ln -sfn "$content_root/usr/lib/gnome-shell" "$host_shell_libdir"
+link_content_path /usr/share/gdm "$content_root/usr/share/gdm"
+link_content_path /usr/share/gnome-settings-daemon \
+    "$content_root/usr/share/gnome-settings-daemon"
+link_content_path /usr/share/gnome-shell \
+    "$content_root/usr/share/gnome-shell"
+link_content_path /usr/lib/gnome-shell \
+    "$content_root/usr/lib/gnome-shell"
+link_content_path /usr/lib/x86_64-linux-gnu/mutter-18 \
+    "$content_root/usr/lib/x86_64-linux-gnu/mutter-18"
+link_content_path /usr/share/gnome-session/sessions/gnome-login.session \
+    "$content_root/usr/share/gnome-session/sessions/gnome-login.session"
 
-host_mutter_libdir=/usr/lib/x86_64-linux-gnu/mutter-18
-if [ -e "$host_mutter_libdir" ] || [ -L "$host_mutter_libdir" ]; then
-    if [ -e "${host_mutter_libdir}.core26" ] || [ -L "${host_mutter_libdir}.core26" ]; then
-        echo "core library fallback already exists: ${host_mutter_libdir}.core26" >&2
-        exit 1
-    fi
-    mv "$host_mutter_libdir" "${host_mutter_libdir}.core26"
-fi
-ln -sfn "$content_root/usr/lib/x86_64-linux-gnu/mutter-18" "$host_mutter_libdir"
+# Deliberately do NOT expose ubuntu.session on the host. The launcher maps
+# GDM's DESKTOP_SESSION=gnome-greeter to gnome-login explicitly, while the
+# logged-in user's confined session reads ubuntu.session from inside the
+# ubuntu-desktop-session snap.
+rm -f /usr/share/gnome-session/sessions/ubuntu.session
 
-# Keep core's initial-setup mode data, which is still customized by
-# hooks/002.4, while taking GNOME Shell's greeter theme from content.
-host_theme=/usr/share/gnome-shell/theme
-if [ -e "$host_theme" ] || [ -L "$host_theme" ]; then
-    if [ -e "${host_theme}.core26" ] || [ -L "${host_theme}.core26" ]; then
-        echo "core theme fallback already exists: ${host_theme}.core26" >&2
-        exit 1
-    fi
-    mv "$host_theme" "${host_theme}.core26"
-fi
-ln -sfn "$content_root/usr/share/gnome-shell/theme" "$host_theme"
+# GDM's host user manager needs the GNOME session unit graph and its
+# Settings Daemon targets to start a usable greeter. Keep the unit payload
+# in the content snap and expose only these small unit files at the host's
+# systemd --user search path.
+for unit in \
+    gnome-session-basic-services.target \
+    gnome-session-initialized.target \
+    gnome-session-manager.target \
+    gnome-session-manager@.service \
+    gnome-session-monitor.service \
+    gnome-session-pre.target \
+    gnome-session-restart-dbus.service \
+    gnome-session-services.target \
+    gnome-session-shutdown.target \
+    gnome-session-signal-init.service \
+    gnome-session-x11-services-ready.target \
+    gnome-session-x11-services.target \
+    gnome-session.target \
+    gnome-session@.target \
+    org.gnome.Shell-disable-extensions.service \
+    org.gnome.Shell@.service
+do
+    link_content_path "/usr/lib/systemd/user/$unit" \
+        "$content_root/usr/lib/systemd/user/$unit"
+done
 
-host_session=/usr/share/gnome-session/sessions/gnome-login.session
-mkdir -p "$(dirname "$host_session")"
-if [ -e "$host_session" ] || [ -L "$host_session" ]; then
-    if [ -e "${host_session}.core26" ] || [ -L "${host_session}.core26" ]; then
-        echo "core session fallback already exists: ${host_session}.core26" >&2
-        exit 1
-    fi
-    mv "$host_session" "${host_session}.core26"
-fi
-ln -sfn "$content_root/usr/share/gnome-session/sessions/gnome-login.session" \
-    "$host_session"
+for component in \
+    A11ySettings \
+    Color \
+    Datetime \
+    Housekeeping \
+    Keyboard \
+    MediaKeys \
+    Power \
+    PrintNotifications \
+    Rfkill \
+    ScreensaverProxy \
+    Sharing \
+    Smartcard \
+    Sound \
+    UsbProtection \
+    Wwan \
+    XSettings
+do
+    for type in target service; do
+        unit="org.gnome.SettingsDaemon.$component.$type"
+        link_content_path "/usr/lib/systemd/user/$unit" \
+            "$content_root/usr/lib/systemd/user/$unit"
+    done
+done
+
+for dropin in \
+    gnome-session@gnome-login.target.d/gnome-login.session.conf \
+    gnome-session@ubuntu.target.d/ubuntu.session.conf
+do
+    link_content_path "/usr/lib/systemd/user/$dropin" \
+        "$content_root/usr/lib/systemd/user/$dropin"
+done
 
 mkdir -p /etc/systemd/system/gdm.service.d
 cat >/etc/systemd/system/gdm.service.d/50-gnome-content.conf <<'EOF'
 [Service]
 ExecStartPre=
-ExecStartPre=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/share/gdm/generate-config /usr/share/gdm.core26/generate-config
+ExecStartPre=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/share/gdm/generate-config
 ExecStart=
-ExecStart=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/sbin/gdm3 /usr/sbin/gdm3.core26
+ExecStart=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/sbin/gdm3
 ExecReload=
-ExecReload=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/share/gdm/generate-config /usr/share/gdm.core26/generate-config
+ExecReload=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/share/gdm/generate-config
 ExecReload=/bin/kill -SIGHUP $MAINPID
 EOF

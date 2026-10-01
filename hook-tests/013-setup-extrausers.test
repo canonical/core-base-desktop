@@ -2,6 +2,11 @@
 
 set -e
 
-for prefix in passwd group shadow; do
-    grep -q "^${prefix}:.*extrausers" etc/nsswitch.conf
-done
+grep -q '^passwd:.*files systemd.*extrausers' etc/nsswitch.conf
+grep -q '^group:.*extrausers systemd' etc/nsswitch.conf
+grep -q '^shadow:.*files systemd.*extrausers' etc/nsswitch.conf
+
+find usr/lib -name libnss_systemd.so.2 -print -quit | grep -q .
+test -f usr/lib/systemd/system/systemd-userdbd.socket
+test -L etc/systemd/system/sockets.target.wants/systemd-userdbd.socket
+test -f usr/lib/security/pam_gdm.so
