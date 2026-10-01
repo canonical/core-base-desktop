@@ -172,6 +172,9 @@ export GDK_PIXBUF_MODULE_FILE
 GSETTINGS_SCHEMA_DIR="$content_root/usr/share/glib-2.0/schemas"
 export GSETTINGS_SCHEMA_DIR
 
+XCURSOR_PATH="$content_root/usr/share/icons:/usr/share/icons"
+export XCURSOR_PATH
+
 if [ "$target" = "$content_root/usr/libexec/gdm-wayland-session" ] &&
     [ "${DESKTOP_SESSION-}" = "gnome-greeter" ] &&
     [ "${1-}" = "gnome-session" ]; then
