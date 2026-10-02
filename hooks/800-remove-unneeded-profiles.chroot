@@ -29,6 +29,13 @@ for profile in "$APPARMOR_PROF_D"/*; do
 
     filename=$(basename "$profile")
 
+    # GDM is attached by systemd's AppArmorProfile= directive rather than
+    # by an executable-name transition, so its named profile has no
+    # matching basename in the host filesystem.
+    if [ "$filename" = gdm ]; then
+        continue
+    fi
+
     # unix-chkpwd profile is actually for unix_chkpwd, fix this naming issue here
     if [ "$filename" = unix-chkpwd ]
     then filename=unix_chkpwd

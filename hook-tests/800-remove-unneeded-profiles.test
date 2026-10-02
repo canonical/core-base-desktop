@@ -4,6 +4,7 @@ APPARMOR_PROF_D="etc/apparmor.d"
 
 declare -A allowed_profs
 allowed_profs[hostname]=""
+allowed_profs[gdm]=""
 allowed_profs[locale]=""
 allowed_profs[lsblk]=""
 allowed_profs[nc.openbsd]=""

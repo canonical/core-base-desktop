@@ -140,6 +140,7 @@ done
 mkdir -p /etc/systemd/system/gdm.service.d
 cat >/etc/systemd/system/gdm.service.d/50-gnome-content.conf <<'EOF'
 [Service]
+AppArmorProfile=gdm
 ExecStartPre=
 ExecStartPre=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/share/gdm/generate-config
 ExecStart=

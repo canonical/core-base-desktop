@@ -157,3 +157,18 @@ dropin=etc/systemd/system/gdm.service.d/50-gnome-content.conf
 grep -Fqx 'ExecStartPre=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/share/gdm/generate-config' "$dropin"
 grep -Fqx 'ExecStart=/usr/libexec/gnome-content-launch --content /snap/gnome-desktop-content/current/usr/sbin/gdm3' "$dropin"
 grep -Fqx 'ExecReload=/bin/kill -SIGHUP $MAINPID' "$dropin"
+grep -Fqx 'AppArmorProfile=gdm' "$dropin"
+test -f etc/apparmor.d/gdm
+grep -Fqx 'profile gdm {' etc/apparmor.d/gdm
+grep -Fqx '  #include <abstractions/dbus-strict>' etc/apparmor.d/gdm
+grep -Fqx '  /usr/libexec/gnome-content-launch ixr,' etc/apparmor.d/gdm
+grep -Fqx '  /usr/lib/core/lockout-not-enabled.sh ix,' etc/apparmor.d/gdm
+grep -Fqx '  /snap/gnome-desktop-content/*/usr/sbin/gdm3 ix,' etc/apparmor.d/gdm
+grep -Fqx '  /snap/gnome-desktop-content/*/usr/libexec/gdm-session-worker ix,' etc/apparmor.d/gdm
+grep -Fqx '  /snap/gnome-desktop-content/*/usr/libexec/gdm-wayland-session Ux,' etc/apparmor.d/gdm
+grep -Fqx '  capability dac_override,' etc/apparmor.d/gdm
+grep -Fqx '  /proc/*/task/*/attr/exec rw,' etc/apparmor.d/gdm
+grep -Fqx '  /run/systemd/users/* r,' etc/apparmor.d/gdm
+grep -Fqx '  /etc/security/faillock.conf r,' etc/apparmor.d/gdm
+grep -Fq 'member={RequestName,ReleaseName,GetConnectionUnixProcessID,GetConnectionUnixUser}' etc/apparmor.d/gdm
+grep -Fqx '  signal (send) set=(term) peer=unconfined,' etc/apparmor.d/gdm
