@@ -203,3 +203,8 @@ grep -Fqx '  /run/systemd/users/* r,' etc/apparmor.d/gdm
 grep -Fqx '  /etc/security/faillock.conf r,' etc/apparmor.d/gdm
 grep -Fq 'member={RequestName,ReleaseName,GetConnectionUnixProcessID,GetConnectionUnixUser}' etc/apparmor.d/gdm
 grep -Fqx '  signal (send) set=(term) peer=unconfined,' etc/apparmor.d/gdm
+
+test -f etc/apparmor.d/ssh-agent
+grep -Fqx 'profile ssh-agent /usr/bin/ssh-agent {' etc/apparmor.d/ssh-agent
+grep -Fqx '  owner /run/user/[0-9]*/openssh_agent rw,' etc/apparmor.d/ssh-agent
+grep -Fqx '  unix (accept, receive, send) type=stream,' etc/apparmor.d/ssh-agent
