@@ -15,14 +15,24 @@ profile gdm {
   dbus (send) bus=system path=/org/freedesktop/Accounts/User* interface=org.freedesktop.Accounts.User member=SetLanguage,
   dbus (bind) bus=system name=org.gnome.DisplayManager,
   dbus (send) bus=system path=/org/freedesktop/DBus interface=org.freedesktop.DBus member={RequestName,ReleaseName,GetConnectionUnixProcessID,GetConnectionUnixUser} peer=(name=org.freedesktop.DBus),
+  dbus (send) bus=session path=/org/freedesktop/DBus interface=org.freedesktop.DBus member=Hello peer=(label=unconfined),
+  dbus (send) bus=session path=/org/freedesktop/systemd1 interface=org.freedesktop.DBus.Properties member=Get peer=(label=unconfined),
 
   /usr/libexec/gnome-content-launch ixr,
   /snap/gnome-desktop-content/*/usr/share/gdm/generate-config ixr,
   /snap/gnome-desktop-content/*/usr/sbin/gdm3 ix,
   /snap/gnome-desktop-content/*/usr/libexec/gdm-session-worker ix,
-  # Keep the per-user session launcher outside the system-service profile so
-  # snap-confine can transition into each desktop snap's own profile.
-  /snap/gnome-desktop-content/*/usr/libexec/gdm-wayland-session Ux,
+  # Keep the session helper confined while its session bus, snap launcher,
+  # and session setup wrapper use narrow unconfined transitions.
+  /snap/gnome-desktop-content/*/usr/libexec/gdm-wayland-session ix,
+  /usr/bin/getent ix,
+  /usr/bin/gnucut ix,
+  /usr/bin/gnuid ix,
+  /usr/bin/gnome-session ixr,
+  /usr/bin/core-desktop-session-wrapper.sh Ux,
+  /snap/snapd/*/usr/bin/snap Ux,
+  /usr/bin/dbus-daemon Ux,
+  /tmp/dbus-* rw,
   /usr/bin/{setsid,setpriv,install,gnuinstall} ix,
   /usr/bin/pkill ix,
   /usr/bin/pgrep ix,
@@ -134,4 +144,5 @@ profile gdm {
   capability sys_tty_config,
   capability setuid,
   signal (send) set=(term) peer=unconfined,
+  signal (send) set=(term) peer=snap.ubuntu-desktop-session.ubuntu-desktop-session,
 }

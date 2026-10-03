@@ -174,11 +174,22 @@ grep -Fqx 'AppArmorProfile=gdm' "$dropin"
 test -f etc/apparmor.d/gdm
 grep -Fqx 'profile gdm {' etc/apparmor.d/gdm
 grep -Fqx '  #include <abstractions/dbus-strict>' etc/apparmor.d/gdm
+grep -Fqx '  dbus (send) bus=session path=/org/freedesktop/DBus interface=org.freedesktop.DBus member=Hello peer=(label=unconfined),' etc/apparmor.d/gdm
+grep -Fqx '  dbus (send) bus=session path=/org/freedesktop/systemd1 interface=org.freedesktop.DBus.Properties member=Get peer=(label=unconfined),' etc/apparmor.d/gdm
 grep -Fqx '  /usr/libexec/gnome-content-launch ixr,' etc/apparmor.d/gdm
 grep -Fqx '  /usr/lib/core/lockout-not-enabled.sh ix,' etc/apparmor.d/gdm
 grep -Fqx '  /snap/gnome-desktop-content/*/usr/sbin/gdm3 ix,' etc/apparmor.d/gdm
 grep -Fqx '  /snap/gnome-desktop-content/*/usr/libexec/gdm-session-worker ix,' etc/apparmor.d/gdm
-grep -Fqx '  /snap/gnome-desktop-content/*/usr/libexec/gdm-wayland-session Ux,' etc/apparmor.d/gdm
+grep -Fqx '  /snap/gnome-desktop-content/*/usr/libexec/gdm-wayland-session ix,' etc/apparmor.d/gdm
+grep -Fqx '  /usr/bin/getent ix,' etc/apparmor.d/gdm
+grep -Fqx '  /usr/bin/gnucut ix,' etc/apparmor.d/gdm
+grep -Fqx '  /usr/bin/gnuid ix,' etc/apparmor.d/gdm
+grep -Fqx '  /usr/bin/gnome-session ixr,' etc/apparmor.d/gdm
+grep -Fqx '  /usr/bin/core-desktop-session-wrapper.sh Ux,' etc/apparmor.d/gdm
+grep -Fqx '  /snap/snapd/*/usr/bin/snap Ux,' etc/apparmor.d/gdm
+grep -Fqx '  /usr/bin/dbus-daemon Ux,' etc/apparmor.d/gdm
+grep -Fqx '  /tmp/dbus-* rw,' etc/apparmor.d/gdm
+grep -Fqx '  signal (send) set=(term) peer=snap.ubuntu-desktop-session.ubuntu-desktop-session,' etc/apparmor.d/gdm
 grep -Fqx '  /snap/gnome-desktop-content/*/usr/share/wayland-sessions/ r,' etc/apparmor.d/gdm
 grep -Fqx '  /snap/gnome-desktop-content/*/usr/share/wayland-sessions/*.desktop r,' etc/apparmor.d/gdm
 grep -Fqx '  dbus (receive) bus=system path=/org/gnome/DisplayManager/Manager interface=org.gnome.DisplayManager.Manager member={RegisterSession,RegisterDisplay,OpenSession,OpenReauthenticationChannel} peer=(label=snap.ubuntu-desktop-session.gnome-shell),' etc/apparmor.d/gdm
