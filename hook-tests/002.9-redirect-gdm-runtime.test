@@ -181,6 +181,11 @@ grep -Fqx '  /snap/gnome-desktop-content/*/usr/libexec/gdm-session-worker ix,' e
 grep -Fqx '  /snap/gnome-desktop-content/*/usr/libexec/gdm-wayland-session Ux,' etc/apparmor.d/gdm
 grep -Fqx '  /snap/gnome-desktop-content/*/usr/share/wayland-sessions/ r,' etc/apparmor.d/gdm
 grep -Fqx '  /snap/gnome-desktop-content/*/usr/share/wayland-sessions/*.desktop r,' etc/apparmor.d/gdm
+grep -Fqx '  dbus (receive) bus=system path=/org/gnome/DisplayManager/Manager interface=org.gnome.DisplayManager.Manager member={RegisterSession,RegisterDisplay,OpenSession,OpenReauthenticationChannel} peer=(label=snap.ubuntu-desktop-session.gnome-shell),' etc/apparmor.d/gdm
+grep -Fqx '  dbus (send) bus=system path=/org/freedesktop/login1 interface=org.freedesktop.login1.Manager member={ListSeats,ActivateSessionOnSeat,UnlockSession} peer=(name=org.freedesktop.login1,label=unconfined),' etc/apparmor.d/gdm
+grep -Fqx '  /etc/shadow r,' etc/apparmor.d/gdm
+grep -Fqx '  /var/lib/extrausers/shadow r,' etc/apparmor.d/gdm
+grep -Fqx '  /sys/fs/cgroup/user.slice/user-*.slice/session-*.scope/cgroup.events r,' etc/apparmor.d/gdm
 grep -Fqx '  capability dac_override,' etc/apparmor.d/gdm
 grep -Fqx '  /proc/*/task/*/attr/exec rw,' etc/apparmor.d/gdm
 grep -Fqx '  /run/systemd/users/* r,' etc/apparmor.d/gdm
