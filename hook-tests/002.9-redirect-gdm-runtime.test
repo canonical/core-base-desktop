@@ -23,6 +23,10 @@ grep -Fqx 'ExecStart=/usr/libexec/gnome-content-launch --session-dispatch gnome-
     usr/lib/systemd/user/gnome-session-manager@ubuntu.service.d/core-override.conf
 grep -Fqx 'ExecStart=/usr/libexec/gnome-content-launch --session-dispatch gnome-shell --mode=%i' \
     usr/lib/systemd/user/org.gnome.Shell@ubuntu.service.d/core-override.conf
+grep -Fqx 'AppArmorProfile=snap.ubuntu-desktop-session.ubuntu-desktop-session' \
+    usr/lib/systemd/user/gnome-session-manager@gnome-login.service.d/core-override.conf
+grep -Fqx 'ExecStart=/snap/bin/ubuntu-desktop-session.gnome-shell --mode=%i --no-x11' \
+    usr/lib/systemd/user/org.gnome.Shell@gdm.service.d/core-override.conf
 
 for executable in \
     usr/bin/dconf \
