@@ -92,6 +92,9 @@ test -L usr/share/gnome-session/sessions/gnome-login.session
 test "$(readlink usr/share/gnome-session/sessions/gnome-login.session)" = \
     /snap/gnome-desktop-content/current/usr/share/gnome-session/sessions/gnome-login.session
 test ! -e usr/share/gnome-session/sessions/gnome-login.session.core26
+test -L usr/share/wayland-sessions/ubuntu.desktop
+test "$(readlink usr/share/wayland-sessions/ubuntu.desktop)" = \
+    /snap/gnome-desktop-content/current/usr/share/wayland-sessions/ubuntu.desktop
 # The host does not need ubuntu.session; the confined user session supplies it.
 test ! -e usr/share/gnome-session/sessions/ubuntu.session
 for unit in \
@@ -176,6 +179,8 @@ grep -Fqx '  /usr/lib/core/lockout-not-enabled.sh ix,' etc/apparmor.d/gdm
 grep -Fqx '  /snap/gnome-desktop-content/*/usr/sbin/gdm3 ix,' etc/apparmor.d/gdm
 grep -Fqx '  /snap/gnome-desktop-content/*/usr/libexec/gdm-session-worker ix,' etc/apparmor.d/gdm
 grep -Fqx '  /snap/gnome-desktop-content/*/usr/libexec/gdm-wayland-session Ux,' etc/apparmor.d/gdm
+grep -Fqx '  /snap/gnome-desktop-content/*/usr/share/wayland-sessions/ r,' etc/apparmor.d/gdm
+grep -Fqx '  /snap/gnome-desktop-content/*/usr/share/wayland-sessions/*.desktop r,' etc/apparmor.d/gdm
 grep -Fqx '  capability dac_override,' etc/apparmor.d/gdm
 grep -Fqx '  /proc/*/task/*/attr/exec rw,' etc/apparmor.d/gdm
 grep -Fqx '  /run/systemd/users/* r,' etc/apparmor.d/gdm

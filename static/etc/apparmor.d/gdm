@@ -44,6 +44,8 @@ profile gdm {
   /snap/gnome-desktop-content/*/usr/share/gdm/ r,
   /snap/gnome-desktop-content/*/usr/share/gdm/dconf/ r,
   /snap/gnome-desktop-content/*/usr/share/gdm/dconf/** r,
+  /snap/gnome-desktop-content/*/usr/share/wayland-sessions/ r,
+  /snap/gnome-desktop-content/*/usr/share/wayland-sessions/*.desktop r,
   /usr/share/gdm/** r,
   /etc/gdm3/custom.conf r,
   /etc/writable/gdm3/custom.conf r,

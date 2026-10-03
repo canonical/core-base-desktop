@@ -72,6 +72,11 @@ link_content_path /usr/lib/x86_64-linux-gnu/mutter-18 \
 link_content_path /usr/share/gnome-session/sessions/gnome-login.session \
     "$content_root/usr/share/gnome-session/sessions/gnome-login.session"
 
+# GDM needs the confined desktop session entry to start a normal user
+# session instead of falling back to the greeter's gnome-login session.
+link_content_path /usr/share/wayland-sessions/ubuntu.desktop \
+    "$content_root/usr/share/wayland-sessions/ubuntu.desktop"
+
 # Deliberately do NOT expose ubuntu.session on the host. The launcher maps
 # GDM's DESKTOP_SESSION=gnome-greeter to gnome-login explicitly, while the
 # logged-in user's confined session reads ubuntu.session from inside the
