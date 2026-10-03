@@ -45,6 +45,9 @@ if [ "${1-}" = "--session-dispatch" ]; then
                     exit 127
                 fi
                 exec "$snap_app" "$@"
+            else
+                echo "refusing unexpected GNOME session app for GDM group: $session_app" >&2
+                exit 126
             fi
             ;;
         *)
