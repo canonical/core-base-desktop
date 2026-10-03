@@ -8,3 +8,11 @@ do
     test -f "$dropin"
     grep -qx 'ConditionGroup=!gdm' "$dropin"
 done
+
+dropin=etc/systemd/user/ssh-agent.service.d/70-gdm-skip.conf
+test -f "$dropin"
+grep -qx 'ConditionGroup=!gdm' "$dropin"
+
+dropin=etc/systemd/user/ssh-agent.socket.d/70-gdm-skip.conf
+test -f "$dropin"
+grep -qx 'ConditionGroup=!gdm' "$dropin"

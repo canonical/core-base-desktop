@@ -161,6 +161,22 @@ ConditionGroup=!gdm
 EOF
 done
 
+# The greeter is not a user session and has no user SSH credentials. Keep
+# the host SSH agent available to ordinary sessions, but don't start it
+# in the GDM user manager.
+mkdir -p /etc/systemd/user/ssh-agent.service.d
+cat >/etc/systemd/user/ssh-agent.service.d/70-gdm-skip.conf <<'EOF'
+# Do not run this unit in a gdm-greeter session
+[Unit]
+ConditionGroup=!gdm
+EOF
+mkdir -p /etc/systemd/user/ssh-agent.socket.d
+cat >/etc/systemd/user/ssh-agent.socket.d/70-gdm-skip.conf <<'EOF'
+# Do not listen for SSH agent requests in a gdm-greeter session
+[Unit]
+ConditionGroup=!gdm
+EOF
+
 # Disable console-conf, since it interferes with GDM taking over
 # /dev/tty1.  Due to the ExecStartPre/ExecStopPost commands, we can't
 # reliably get rid of it with Conflicts/After

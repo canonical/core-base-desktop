@@ -19,6 +19,10 @@ if [ "${1-}" = "--session-dispatch" ]; then
             target="$content_root/usr/bin/gnome-shell"
             snap_app=/snap/bin/ubuntu-desktop-session.gnome-shell
             ;;
+        gnome-login-session)
+            target="$content_root/usr/bin/gnome-session"
+            snap_app=/snap/bin/gnome-desktop-content.ubuntu-desktop-session
+            ;;
         *)
             echo "unsupported GNOME session app: $session_app" >&2
             exit 2
@@ -35,6 +39,13 @@ if [ "${1-}" = "--session-dispatch" ]; then
     fi
     case " $(id -G) " in
         *" $gdm_gid "*)
+            if [ "$session_app" = "gnome-login-session" ]; then
+                if [ ! -x "$snap_app" ]; then
+                    echo "confined session app is unavailable: $snap_app" >&2
+                    exit 127
+                fi
+                exec "$snap_app" "$@"
+            fi
             ;;
         *)
             if [ ! -x "$snap_app" ]; then
@@ -178,7 +189,7 @@ export XCURSOR_PATH
 if [ "$target" = "$content_root/usr/libexec/gdm-wayland-session" ] &&
     [ "${DESKTOP_SESSION-}" = "gnome-greeter" ] &&
     [ "${1-}" = "gnome-session" ]; then
-    set -- "gnome-session --session=gnome-login"
+    set -- "/usr/libexec/gnome-content-launch --session-dispatch gnome-login-session --session=gnome-login"
 fi
 
 exec "$target" "$@"

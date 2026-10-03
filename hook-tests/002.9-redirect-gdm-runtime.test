@@ -14,19 +14,24 @@ grep -Fq 'if [ "${1-}" = "--session-dispatch" ]; then' "$launcher"
 grep -Fq 'gnome-session-service)' "$launcher"
 grep -Fq 'gnome-shell)' "$launcher"
 grep -Fq 'gdm_gid=$(getent group gdm | cut -d: -f3)' "$launcher"
-grep -Fq '[ "$target" = "$content_root/usr/libexec/gdm-wayland-session" ] &&' "$launcher"
+grep -Fq '        gnome-login-session)' "$launcher"
+grep -Fq 'snap_app=/snap/bin/gnome-desktop-content.ubuntu-desktop-session' "$launcher"
 grep -Fq '[ "${DESKTOP_SESSION-}" = "gnome-greeter" ] &&' "$launcher"
-grep -Fq 'set -- "gnome-session --session=gnome-login"' "$launcher"
+grep -Fq 'exec "$snap_app" "$@"' "$launcher"
+grep -Fq '[ "$target" = "$content_root/usr/libexec/gdm-wayland-session" ] &&' "$launcher"
+grep -Fq 'set -- "/usr/libexec/gnome-content-launch --session-dispatch gnome-login-session --session=gnome-login"' "$launcher"
 ! grep -Fq 'CORE_FALLBACK' "$launcher"
 
 grep -Fqx 'ExecStart=/usr/libexec/gnome-content-launch --session-dispatch gnome-session-service --session=%i' \
     usr/lib/systemd/user/gnome-session-manager@ubuntu.service.d/core-override.conf
 grep -Fqx 'ExecStart=/usr/libexec/gnome-content-launch --session-dispatch gnome-shell --mode=%i' \
     usr/lib/systemd/user/org.gnome.Shell@ubuntu.service.d/core-override.conf
-grep -Fqx 'AppArmorProfile=snap.ubuntu-desktop-session.ubuntu-desktop-session' \
+grep -Fqx 'ExecStart=/snap/bin/ubuntu-desktop-session.gnome-session-service --session=%i' \
     usr/lib/systemd/user/gnome-session-manager@gnome-login.service.d/core-override.conf
 grep -Fqx 'ExecStart=/snap/bin/ubuntu-desktop-session.gnome-shell --mode=%i --no-x11' \
     usr/lib/systemd/user/org.gnome.Shell@gdm.service.d/core-override.conf
+grep -Fqx 'ExecStart=/snap/bin/ubuntu-desktop-session.gnome-session-ctl --monitor' \
+    usr/lib/systemd/user/gnome-session-monitor.service.d/core-override.conf
 
 for executable in \
     usr/bin/dconf \
