@@ -92,11 +92,18 @@ for name in \
     XDG_MENU_PREFIX XDG_CONFIG_HOME XDG_CONFIG_DIRS XDG_DATA_HOME \
     XDG_CACHE_HOME XDG_STATE_HOME XCURSOR_THEME XCURSOR_SIZE \
     GNOME_SETUP_DISPLAY GTK_IM_MODULE QT_IM_MODULE QT_IM_MODULES \
-    XMODIFIERS PULSE_SERVER; do
+    XMODIFIERS; do
     if value="$(printenv "$name" 2>/dev/null)"; then
         activation_environment+=("$name=$value")
     fi
 done
+
+# libpulse clients look for the PulseAudio socket in their (snap-private)
+# XDG_RUNTIME_DIR, where the content snap's pipewire-pulse socket is not
+# visible; point them at its real location instead. The socket is created
+# on demand by systemd socket activation of the pipewire-pulse user daemon.
+export PULSE_SERVER="unix:$runtime_dir/snap.gnome-desktop-content/pulse/native"
+activation_environment+=("PULSE_SERVER=$PULSE_SERVER")
 
 stale_activation_environment=()
 for name in "${stale_environment_vars[@]}"; do
@@ -171,6 +178,6 @@ fixup_xauthority &
 ln -sf "snap.$snap_name/wayland-0" $XDG_RUNTIME_DIR/wayland-0
 # Symlink sockets for pipewire and pipewire-pulse
 ln -sf "snap.gnome-desktop-content/pipewire-0" $XDG_RUNTIME_DIR/pipewire-0
-ln -sf "snap.pipewire/pulse" $XDG_RUNTIME_DIR/pulse
+ln -sf "snap.gnome-desktop-content/pulse" $XDG_RUNTIME_DIR/pulse
 
 exec "/snap/bin/$snap_cmd"
