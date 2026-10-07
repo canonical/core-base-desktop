@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-content_root=/snap/gnome-desktop-content/current
+content_root=/snap/gnome-desktop-runtime/current
 
 if [ "${1-}" = "--session-dispatch" ]; then
     if [ "$#" -lt 2 ]; then
@@ -21,7 +21,7 @@ if [ "${1-}" = "--session-dispatch" ]; then
             ;;
         gnome-login-session)
             target="$content_root/usr/bin/gnome-session"
-            snap_app=/snap/bin/gnome-desktop-content.ubuntu-desktop-session
+            snap_app=/snap/bin/gnome-desktop-runtime.ubuntu-desktop-session
             ;;
         *)
             echo "unsupported GNOME session app: $session_app" >&2

@@ -9,7 +9,7 @@ set -e
 # are already unpacked into the rootfs by the time this hook runs. This
 # hook now only does the post-install configuration that used to follow
 # those apt-get calls. Session-only packages are provided by the
-# gnome-desktop-content snap.
+# gnome-desktop-runtime snap.
 
 # Remove setuid from some executables we're not using. Note: chisel's
 # polkitd slices (bins/daemon/services - see snapcraft.yaml) deliberately
@@ -59,7 +59,7 @@ rm -f /usr/lib/systemd/user/gnome-session.target.wants/org.freedesktop.IBus.sess
 rm -f /usr/lib/systemd/user/colord-session.service
 
 # LocalSearch and TinySPARQL are user-session services supplied by
-# gnome-desktop-content. The host GDM greeter does not use file indexing
+# gnome-desktop-runtime. The host GDM greeter does not use file indexing
 # or the Tracker portal, so remove their package payload from the base.
 rm -f /usr/bin/localsearch /usr/bin/tinysparql
 rm -f /usr/libexec/localsearch* /usr/libexec/tinysparql*
@@ -85,7 +85,7 @@ rm -f /usr/lib/sysctl.d/30-localsearch.conf
 rm -f /etc/xdg/autostart/localsearch-3.desktop
 
 # The Settings app, portal backends, and Bluetooth SPA modules are
-# supplied by gnome-desktop-content and are not used by the host greeter.
+# supplied by gnome-desktop-runtime and are not used by the host greeter.
 rm -f /usr/bin/gnome-control-center
 rm -f /usr/libexec/gnome-control-center*
 rm -f /usr/libexec/xdg-desktop-portal
@@ -129,7 +129,7 @@ rm -f /usr/share/applications/xdg-desktop-portal-gnome.desktop
 rm -f /usr/share/applications/xdg-desktop-portal-gtk.desktop
 rm -rf /usr/share/xdg-desktop-portal/gnome-portals.conf
 
-# These user-session extensions are provided by gnome-desktop-content.
+# These user-session extensions are provided by gnome-desktop-runtime.
 # The host GDM greeter runs GNOME Shell's dedicated greeter mode instead.
 for extension in \
     ding@rastersoft.com \

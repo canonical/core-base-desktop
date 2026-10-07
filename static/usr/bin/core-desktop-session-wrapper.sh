@@ -155,7 +155,7 @@ if [ "$session_type" = "KDE" ] || [ "$session_type" = "ubuntu:GNOME" ]; then
     if [ "$session_type" = "KDE" ]; then
         user_unit_source=/snap/plasma-core26-desktop/current/usr/lib/systemd/user
     else
-        user_unit_source=/snap/gnome-desktop-content/current/usr/lib/systemd/user
+        user_unit_source=/snap/gnome-desktop-runtime/current/usr/lib/systemd/user
     fi
     if [ ! -d "$user_unit_source" ]; then
         echo "missing desktop content user units: $user_unit_source" >&2

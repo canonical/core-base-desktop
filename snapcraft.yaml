@@ -339,7 +339,7 @@ parts:
   desktop-packages:
     # xkb-data is retained in the base for the host GDM greeter. The
     # session-only packages previously staged here are supplied by the
-    # gnome-desktop-content snap instead.
+    # gnome-desktop-runtime snap instead.
     after:
       - chisel-libs
     plugin: nil
@@ -374,10 +374,10 @@ parts:
   gdm-packages:
     # Host integrations needed by the unconfined GDM service. The GDM
     # daemon, greeter, session runtime, and desktop packages come from
-    # gnome-desktop-content.
+    # gnome-desktop-runtime.
     #
     # Stop bundling the session's PipeWire runtime in the base: the
-    # session and its portal now use the gnome-desktop-content snap.
+    # session and its portal now use the gnome-desktop-runtime snap.
     # GDM's dependency closure may still pull some client libraries, but
     # the daemon binaries and data are not needed by the host greeter.
     #
@@ -503,7 +503,7 @@ parts:
   gdm-host-integration:
     # Keep only host-owned service, PAM, configuration, and D-Bus policy
     # files from gdm3. Its executable and runtime dependency closure are
-    # supplied by gnome-desktop-content.
+    # supplied by gnome-desktop-runtime.
     after:
       - chisel-libs
     plugin: nil
