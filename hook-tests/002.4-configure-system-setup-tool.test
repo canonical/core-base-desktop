@@ -4,6 +4,14 @@ test -x usr/libexec/provd
 test -f usr/share/dconf/profile/gnome-initial-setup
 test -f usr/share/gnome-initial-setup/initial-setup-dconf-defaults
 
+# The initial-setup session must launch the Ubuntu wizard via the
+# provision-init launcher (provd + ubuntu_init), not the removed Debian
+# gnome-initial-setup wrapper.
+grep -Fqx 'ExecStart=/usr/libexec/launch-desktop-provision-init' \
+    usr/lib/systemd/user/gnome-initial-setup.service
+grep -Fq 'DCONF_PROFILE= DESKTOP_PROVISION_PATH=/usr/share/desktop-provision /snap/ubuntu-desktop-init/current/bin/ubuntu_init' \
+    usr/libexec/launch-desktop-provision-init
+
 for path in \
     usr/lib/x86_64-linux-gnu/libwebkitgtk-6.0.so.4 \
     usr/lib/x86_64-linux-gnu/libwebkitgtk-6.0.so.4.* \
