@@ -1,0 +1,38 @@
+name: build-snap
+on:
+  pull_request:
+  push:
+    branches:
+      - desktop/26
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  snap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y fakeroot squashfs-tools
+      - name: Build core26-desktop snap
+        run: |
+          sudo snap install snapcraft --classic --channel=edge
+          ./build-github.sh
+      - name: Publish to desktop-26-latest release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view desktop-26-latest -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create desktop-26-latest -R "$GITHUB_REPOSITORY" \
+                 --title "desktop/26 latest snap" \
+                 --notes "Rolling latest desktop/26 snap build; assets are replaced on every green build."
+          gh release upload desktop-26-latest core26-desktop.snap -R "$GITHUB_REPOSITORY" --clobber
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snap
+          path: core26-desktop.snap
+          compression-level: 0
+          retention-days: 14
