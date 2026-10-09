@@ -4,3 +4,5 @@ set -eux
 
 [ -L usr/lib/locale/en_US.UTF-8 ]
 [ -d usr/lib/locale/C.utf8 ]
+# provd (first-boot wizard) validates locales against this at runtime.
+test -f usr/share/i18n/SUPPORTED

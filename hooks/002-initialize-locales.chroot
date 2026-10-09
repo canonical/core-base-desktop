@@ -66,7 +66,12 @@ ln -sf ../locale.conf /etc/default/locale
 # Cleanup locale files
 rm -f /etc/locale.alias
 rm -f /lib/locale/locale-archive
-rm -rf /usr/share/i18n
+# Drop the bulky locale definition/charmap sources (only needed above by
+# localedef), but KEEP /usr/share/i18n/SUPPORTED: provd (the first-boot
+# wizard backend) validates requested locales against it at runtime
+# ("failed to open locale file: open /usr/share/i18n/SUPPORTED") and the
+# wizard's language page hangs forever without it.
+rm -rf /usr/share/i18n/charmaps /usr/share/i18n/locales
 
 # Remove locale generation tools (no longer needed)
 rm -f /usr/sbin/locale-gen /usr/sbin/update-locale /usr/sbin/validlocale
