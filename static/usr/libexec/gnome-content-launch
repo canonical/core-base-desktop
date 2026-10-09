@@ -94,7 +94,7 @@ else
             }
             account=${account_entry%%:*}
             case "$account" in
-                gdm|gdm-greeter|gdm-greeter-[0-9]*)
+                gdm|gdm-greeter|gdm-greeter-[0-9]*|gnome-initial-setup|gnome-initial-setup-[0-9]*)
                     ;;
                 *)
                     echo "refusing content runtime for non-GDM account '$account': $alias_path" >&2

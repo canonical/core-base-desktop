@@ -3,7 +3,7 @@
 launcher=usr/libexec/gnome-content-launch
 test -x "$launcher"
 grep -Fqx '            target="$content_root/usr/${alias_path#/usr/}"' "$launcher"
-grep -Fqx '                gdm|gdm-greeter|gdm-greeter-[0-9]*)' "$launcher"
+grep -Fqx '                gdm|gdm-greeter|gdm-greeter-[0-9]*|gnome-initial-setup|gnome-initial-setup-[0-9]*)' "$launcher"
 grep -Fqx '        /usr/libexec/gdm-*|/usr/bin/dconf|/usr/libexec/gnome-session-ctl)' "$launcher"
 grep -Fq '"$content_root"/usr/lib/gnome-shell \' "$launcher"
 grep -Fq '"$content_root"/usr/lib/*-linux-gnu/mutter-* \' "$launcher"
@@ -181,6 +181,7 @@ grep -Fqx '  /usr/lib/core/lockout-not-enabled.sh ix,' etc/apparmor.d/gdm
 grep -Fqx '  /snap/gnome-desktop-runtime/*/usr/sbin/gdm3 ix,' etc/apparmor.d/gdm
 grep -Fqx '  /snap/gnome-desktop-runtime/*/usr/libexec/gdm-session-worker ix,' etc/apparmor.d/gdm
 grep -Fqx '  /snap/gnome-desktop-runtime/*/usr/libexec/gdm-wayland-session ix,' etc/apparmor.d/gdm
+grep -Fqx '  /snap/gnome-desktop-runtime/*/usr/bin/gnome-session Ux,' etc/apparmor.d/gdm
 grep -Fqx '  /usr/bin/getent ix,' etc/apparmor.d/gdm
 grep -Fqx '  /usr/bin/gnucut ix,' etc/apparmor.d/gdm
 grep -Fqx '  /usr/bin/gnuid ix,' etc/apparmor.d/gdm

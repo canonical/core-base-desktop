@@ -40,6 +40,12 @@ profile gdm {
   /usr/sbin/unix_chkpwd Px -> unix-chkpwd,
   /usr/bin/gnome-keyring-daemon Ux,
   /snap/gnome-desktop-runtime/*/usr/bin/dconf ix,
+  # GDM's initial-setup session (first-boot wizard) runs the content
+  # runtime's gnome-session directly, as the "gnome-initial-setup" or a
+  # transient "gnome-initial-setup-<n>" account -- the wizard stack
+  # (provd, ubuntu_init) runs unconfined by design. The greeter never
+  # execs this path (it dispatches through snap run instead).
+  /snap/gnome-desktop-runtime/*/usr/bin/gnome-session Ux,
 
   /snap/gnome-desktop-runtime/*/usr/lib/** mr,
   /snap/gnome-desktop-runtime/*/usr/share/gdm/** r,

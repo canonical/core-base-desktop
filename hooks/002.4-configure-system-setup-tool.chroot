@@ -28,6 +28,14 @@ EOF
 # initial-setup profile; the GNOME session itself still uses that profile.
 sed -i 's#/snap/bin/ubuntu-desktop-init#DCONF_PROFILE= DESKTOP_PROVISION_PATH=/usr/share/desktop-provision /snap/ubuntu-desktop-init/current/bin/ubuntu_init#' /usr/libexec/launch-desktop-provision-init
 
+# GDM's initial-setup session launches the wizard through
+# gnome-initial-setup.service, whose stock ExecStart runs the Debian
+# gnome-initial-setup wrapper -- which is removed below along with the
+# GNOME initial-setup UI itself. Rewire the unit to run the Ubuntu wizard
+# launcher instead (it starts provd, waits for its socket, then execs
+# ubuntu_init from the snap).
+sed -i 's#^ExecStart=.*#ExecStart=/usr/libexec/launch-desktop-provision-init#' /usr/lib/systemd/user/gnome-initial-setup.service
+
 # remove unneeded files to free space
 # The GNOME session does not use the GeoClue demo agent. Do not leave
 # its host-executed autostart entry in the image.
