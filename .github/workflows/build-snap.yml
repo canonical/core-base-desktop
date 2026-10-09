@@ -16,10 +16,18 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y fakeroot squashfs-tools
+      - name: Set up LXD (mirrors snapcore/action-build)
+        run: |
+          sudo groupadd --force --system lxd
+          sudo usermod --append --groups lxd "$USER"
+          sudo snap install lxd
+          sudo lxd init --auto
       - name: Build core26-desktop snap
         run: |
           sudo snap install snapcraft --classic --channel=edge
-          ./build-github.sh
+          # Re-exec with fresh group membership so snapcraft can talk to
+          # the LXD socket (see action-build's sudo -u "$USER" -E pattern).
+          sudo -u "$USER" -E ./build-github.sh
       - name: Publish to desktop-26-latest release
         if: github.event_name != 'pull_request'
         env:
