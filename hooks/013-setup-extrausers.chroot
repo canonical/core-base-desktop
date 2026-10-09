@@ -73,3 +73,9 @@ ln -sfn /usr/lib/systemd/system/systemd-userdbd.socket \
 # verify pam_extrausers.so is available
 grep pam_extrausers.so /etc/pam.d/common-password
 grep pam_extrausers.so /etc/pam.d/common-auth
+
+# NOTE: user-creation group membership (adduser -> usermod -a -G) and
+# password setting (accounts-daemon -> chpasswd) only work against
+# /var/lib/extrausers with the UCD PPA builds of shadow/adduser, which
+# the Makefile overlays into the tree from debs/ -- see debs/README.txt.
+# The hook tests pin that the overlay actually landed.

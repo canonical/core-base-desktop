@@ -1,0 +1,40 @@
+Description: make adduser use plain usermod in extrausers mode
+Author: UCD PPA port (see ~/git/ucd-ppa/status.txt); regenerated against resolute adduser 3.153ubuntu1
+Forwarded: no
+
+--- a/adduser
++++ b/adduser
+@@ -572,11 +572,11 @@
+     log_info( mtx("Adding user `%s' to group `%s' ..."), $existing_user, $existing_group );
+ 
+     acquire_lock();
+-    if ( ($use_extrausers) || ($config{"use_extrausers"}) ) {
+-        systemcall('/usr/sbin/usermod', '--extrausers', '-a', '-G', $existing_group, $existing_user);
+-    } else {
+-        systemcall('/usr/sbin/usermod', '-a', '-G', $existing_group, $existing_user);
+-    }
++    # Do NOT pass --extrausers here: usermod has no such flag (it prints
++    # its usage text and exits 2). Plain usermod is correct -- the
++    # archive's shadow build is extrausers-aware and edits
++    # /var/lib/extrausers/group for extrausers users.
++    systemcall('/usr/sbin/usermod', '-a', '-G', $existing_group, $existing_user);
+     release_lock();
+ 
+     exit( $returnvalue );
+@@ -1572,11 +1572,11 @@
+     # untaint unconditionally. our call to system() is safe, so
+     # we leave the check to usermod
+     if ($comment =~ qr/^([^\x00-\x1F\x7F:]*)$/ ) {
+-        if ( ($use_extrausers) || ($config{"use_extrausers"}) ) {
+-            log_fatal("Calling usermod with --extrausers is unsupported. Please raise a bug if you want to see this fixed.")
+-        } else {
+-            systemcall($usermod, '-c', $1, $name);
+-        }
++        # Plain usermod is correct: the archive's shadow build is
++        # extrausers-aware and edits /var/lib/extrausers/passwd for
++        # extrausers users (refusing here silently dropped the real
++        # name set by the first-boot wizard).
++        systemcall($usermod, '-c', $1, $name);
+     } else {
+         log_fatal("unconditional sanitize of comment failed. This should not happen.");
+     }

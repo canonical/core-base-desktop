@@ -1,0 +1,33 @@
+From: James Henstridge <james@jamesh.id.au>
+Date: Mon, 24 Jun 2024 19:29:42 +0800
+Subject: chpasswd: support extrausers
+
+---
+ src/chpasswd.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/src/chpasswd.c b/src/chpasswd.c
+index 48d5178..e8cc6e4 100644
+--- a/src/chpasswd.c
++++ b/src/chpasswd.c
+@@ -323,11 +323,20 @@ static void check_perms (void)
+  */
+ static void open_files (void)
+ {
++	bool try_extrausers = strcmp (pw_dbname (), EXTRAUSERS_PASSWD_FILE) != 0 &&
++	                      access (EXTRAUSERS_PASSWD_FILE, F_OK) == 0;
++
+ 	/*
+ 	 * Lock the password file and open it for reading and writing. This
+ 	 * will bring all of the entries into memory where they may be updated.
+ 	 */
+ 	if (pw_lock () == 0) {
++		if (try_extrausers) {
++			pw_setdbname (EXTRAUSERS_PASSWD_FILE);
++			spw_setdbname (EXTRAUSERS_SHADOW_FILE);
++			open_files ();
++			return;
++		}
+ 		fprintf (stderr,
+ 		         _("%s: cannot lock %s; try again later.\n"),
+ 		         Prog, pw_dbname ());

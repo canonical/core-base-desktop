@@ -10,3 +10,11 @@ find usr/lib -name libnss_systemd.so.2 -print -quit | grep -q .
 test -f usr/lib/systemd/system/systemd-userdbd.socket
 test -L etc/systemd/system/sockets.target.wants/systemd-userdbd.socket
 test -f usr/lib/security/pam_gdm.so
+
+# The UCD PPA overlays must have landed (see debs/README.txt):
+# - the PPA adduser dropped the nonexistent `usermod --extrausers` call
+#   (the stock resolute adduser still has it);
+# - the PPA chpasswd knows about /var/lib/extrausers (the stock one does
+#   not), which is how the wizard's password step reaches extrausers.
+! grep -q "usermod', '--extrausers'" usr/sbin/adduser
+grep -q "var/lib/extrausers" usr/sbin/chpasswd

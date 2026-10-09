@@ -18,6 +18,17 @@ install:
 	# copy static files verbatim
 	/bin/cp -a static/* $(DESTDIR)
 
+	# Overlay the UCD PPA-equivalent patched shadow/adduser binaries,
+	# built by the ucd-ppa-overlays part from patches/ (see
+	# patches/README.txt): chpasswd/usermod must work against
+	# /var/lib/extrausers for the first-boot wizard's account page, and
+	# adduser must not call the nonexistent `usermod --extrausers`.
+	cp -a $(CRAFT_STAGE)/overlay/usr/sbin/. $(DESTDIR)/usr/sbin/
+	cp -a $(CRAFT_STAGE)/overlay/usr/bin/. $(DESTDIR)/usr/bin/
+	if [ -d $(CRAFT_STAGE)/overlay/usr/share/perl5 ]; then \
+		cp -a $(CRAFT_STAGE)/overlay/usr/share/perl5/. $(DESTDIR)/usr/share/perl5/; \
+	fi
+
 	# since recently we're also missing some /dev files that might be
 	# useful during build - make sure they're there
 	mkdir -p $(DESTDIR)/dev

@@ -91,6 +91,58 @@ parts:
 
   # TODO: rewrite this once all slices are upstreamed to use chisel slices
   # directly from canonical, instead of our own chisel-releases repo.
+  ucd-ppa-overlays:
+    after:
+      - build-env
+    plugin: nil
+    build-packages:
+      - build-essential
+      - debhelper
+      - dpkg-dev
+      - fakeroot
+    override-pull: |
+      craftctl default
+      # Enable deb-src so `apt-get source` works in the build instance
+      # (resolute uses deb822 sources; handle the classic layout too).
+      sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/*.sources || true
+      if [ -f /etc/apt/sources.list ] && ! grep -q '^deb-src' /etc/apt/sources.list; then
+        sed -n 's/^deb /deb-src /p' /etc/apt/sources.list >> /etc/apt/sources.list
+      fi
+      apt-get update
+    override-build: |
+      craftctl default
+      set -e
+      cd "$CRAFT_PART_BUILD"
+      # Fetch the current resolute sources (unpinned on purpose: track
+      # the archive; if a patch stops applying the build fails loudly
+      # at the `patch` step and the patch needs re-porting -- see
+      # patches/README.txt).
+      apt-get source shadow adduser
+      shadow_src="$(find . -maxdepth 1 -type d -name 'shadow-*' | head -1)"
+      adduser_src="$(find . -maxdepth 1 -type d -name 'adduser-*' | head -1)"
+      apt-get build-dep -y "./${shadow_src}"
+      apt-get build-dep -y "./${adduser_src}"
+      for p in "$CRAFT_PROJECT_DIR"/patches/ucd-ppa/shadow/*.patch; do
+        patch -d "$shadow_src" -p1 < "$p"
+      done
+      patch -d "$adduser_src" -p1 \
+        < "$CRAFT_PROJECT_DIR"/patches/ucd-ppa/adduser/resolute-drop-usermod-extrausers.patch
+      # -d: build-deps were just installed via apt-get build-dep
+      (cd "$shadow_src" && \
+        DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -d -b -us -uc \
+          -j"$(nproc)" -tc -a"$(dpkg --print-architecture)")
+      (cd "$adduser_src" && \
+        DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -d -b -us -uc \
+          -a"$(dpkg --print-architecture)")
+      mkdir -p "$CRAFT_PART_INSTALL/overlay"
+      # passwd_* deliberately skips the passwd-dbgsym ddebs; uidmap/
+      # libsubid/login.defs debs are built too but not staged anywhere
+      # the image reads from.
+      dpkg-deb -x passwd_*.deb "$CRAFT_PART_INSTALL/overlay"
+      dpkg-deb -x adduser_*.deb "$CRAFT_PART_INSTALL/overlay"
+      rm -rf "$CRAFT_PART_INSTALL"/overlay/usr/share/man \
+             "$CRAFT_PART_INSTALL"/overlay/usr/share/doc
+
   chisel-libs:
     after:
       - build-env
@@ -798,6 +850,7 @@ parts:
       - splash-theme
       - fuse-broker
       - build-env
+      - ucd-ppa-overlays
     plugin: make
     source: .
     build-packages:
