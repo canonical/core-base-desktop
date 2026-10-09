@@ -26,11 +26,29 @@ done
 rm -f /etc/timezone
 
 # setup default console configuration, make them symlinks
-# into writable so they can be changed
+# into writable so they can change
 mv /etc/locale.conf /etc/writable/locale.conf
 rm /etc/default/locale
 ln -s ../writable/locale.conf /etc/default/locale
 ln -s writable/locale.conf /etc/locale.conf
+
+# systemd-localed (SetLocale and SetKeyboard, used by provd for the
+# first-boot wizard's language and keyboard pages) writes
+# /etc/locale.conf and /etc/vconsole.conf with a temp-file+rename in the
+# file's own directory (write_env_file -> fopen_tmpfile_linkable_at).
+# /etc is read-only on Ubuntu Core, so that fails with EROFS even though
+# the files are symlinks into the writable tree. systemd honours the
+# SYSTEMD_ETC_LOCALE_CONF / SYSTEMD_ETC_VCONSOLE_CONF env overrides:
+# point them straight at the writable files so the temp files are created
+# and linked inside /etc/writable.
+mkdir -p /etc/systemd/system/systemd-localed.service.d
+cat > /etc/systemd/system/systemd-localed.service.d/10-writable-confs.conf <<'EOF'
+# Write the locale/vconsole configuration directly into the writable
+# tree (see hooks/011-etc-writable.chroot); /etc itself is read-only.
+[Service]
+Environment=SYSTEMD_ETC_LOCALE_CONF=/etc/writable/locale.conf
+Environment=SYSTEMD_ETC_VCONSOLE_CONF=/etc/writable/vconsole.conf
+EOF
 
 # setup default vconsole/keyboard configuration, make it a
 # symlink as well so it can change, and remove the default

@@ -807,6 +807,17 @@ parts:
     override-prime: |
       craftctl default
 
+      # Debian's systemd ships a hardening D-Bus policy denying
+      # SetVConsoleKeyboard/SetX11Keyboard to *everyone* ("Ensure not
+      # even root can use it to modify the settings") -- classic Debian
+      # sets the keymap via console-setup instead. This image drives
+      # localed from provd (first-boot wizard keyboard page), and the
+      # file loads last alphabetically, overriding the plain allow in
+      # org.freedesktop.locale1.conf. It is staged by several parts
+      # (chisel-libs/gdm-packages/system-setup-tool-packages), so remove
+      # it from the merged prime tree. polkit still authorises callers.
+      rm -f "${CRAFT_PRIME}"/usr/share/dbus-1/system.d/org.freedesktop.locale1.read-only.conf
+
       # ensure build-in tests are run
       make -C ${CRAFT_PART_SRC} test TESTDIR=${CRAFT_PRIME}
 

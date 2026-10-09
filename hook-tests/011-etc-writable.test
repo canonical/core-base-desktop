@@ -19,3 +19,16 @@ grep "LANG" etc/locale.conf
 
 # ensure link is readable
 grep "KEYMAP" etc/vconsole.conf
+
+# localed must write the locale/vconsole files directly in the writable
+# tree -- its temp-file+rename fails in the read-only /etc directory
+# (provd's first-boot wizard sets locale/keyboard through localed).
+grep -qx "Environment=SYSTEMD_ETC_LOCALE_CONF=/etc/writable/locale.conf" \
+    etc/systemd/system/systemd-localed.service.d/10-writable-confs.conf
+grep -qx "Environment=SYSTEMD_ETC_VCONSOLE_CONF=/etc/writable/vconsole.conf" \
+    etc/systemd/system/systemd-localed.service.d/10-writable-confs.conf
+
+# Debian's locale1 read-only hardening policy must not ship: it denies
+# SetX11Keyboard/SetVConsoleKeyboard to everyone, breaking provd's
+# first-boot wizard keyboard page.
+test ! -e usr/share/dbus-1/system.d/org.freedesktop.locale1.read-only.conf
