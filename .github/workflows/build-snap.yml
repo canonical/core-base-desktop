@@ -22,6 +22,10 @@ jobs:
           sudo usermod --append --groups lxd "$USER"
           sudo snap install lxd
           sudo lxd init --auto
+          # GH runners ship docker/moby, whose FORWARD DROP policy breaks
+          # LXD bridge networking ("no network access" while creating the
+          # build instance) - see snapcore/action-build ensureLXDNetwork.
+          sudo iptables -P FORWARD ACCEPT
       - name: Build core26-desktop snap
         run: |
           sudo snap install snapcraft --classic --channel=edge
