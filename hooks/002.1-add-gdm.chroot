@@ -146,18 +146,70 @@ done
 # GNOME Shell activates these snap-provided services in the greeter
 # session. Their snap confinement rejects GDM's dynamic home under
 # /run/gdm3/home as outside /home. In particular, the PermissionStore
-# activation times out in the greeter. These services are optional in
-# GDM mode but remain available in regular user sessions.
+# activation times out in the greeter. screencast-service and
+# ibus-portal-service are likewise unneeded in GDM's initial-setup
+# (first-boot wizard) session, which runs as a transient account whose
+# primary group is "gnome-initial-setup".
+#
+# xdg-permission-store must NOT be skipped for the wizard session: the
+# xdg-desktop-portal that ubuntu_init activates hard-depends on it
+# ("Starting portals failed: No permission store") and the wizard window
+# never renders without it. It only works there because the wizard user
+# is a real extrausers account covered by snapd's
+# `snap set system homedirs=/run/gdm3/home`, unlike the userdb-dynamic
+# greeter user.
 for service in \
-    snap.ubuntu-desktop-session.xdg-permission-store.service \
     snap.ubuntu-desktop-session.screencast-service.service \
     snap.ubuntu-desktop-session.ibus-portal-service.service
 do
     mkdir -p "/etc/systemd/user/${service}.d"
     cat >"/etc/systemd/user/${service}.d/70-gdm-skip.conf" <<'EOF'
-# Do not run this unit in a gdm-greeter session
+# Do not run this unit in a gdm-greeter or initial-setup session
 [Unit]
 ConditionGroup=!gdm
+ConditionGroup=!gnome-initial-setup
+EOF
+done
+
+mkdir -p /etc/systemd/user/snap.ubuntu-desktop-session.xdg-permission-store.service.d
+cat >"/etc/systemd/user/snap.ubuntu-desktop-session.xdg-permission-store.service.d/70-gdm-skip.conf" <<'EOF'
+# Do not run this unit in a gdm-greeter session. GDM's initial-setup
+# (first-boot wizard) session DOES need it -- xdg-desktop-portal, which
+# ubuntu_init activates, fails without a permission store.
+[Unit]
+ConditionGroup=!gdm
+EOF
+
+# The host user-session-migration service has nothing to migrate in
+# greeter/initial-setup sessions and fails noisily there; real user
+# sessions are unaffected (they are in neither group). KDE images
+# additionally skip the sddm greeter via build.sh's kde-override.conf.
+mkdir -p /etc/systemd/user/user-session-migration.service.d
+cat >"/etc/systemd/user/user-session-migration.service.d/70-gdm-skip.conf" <<'EOF'
+# Nothing to migrate in greeter/initial-setup sessions
+[Unit]
+ConditionGroup=!gdm
+ConditionGroup=!gnome-initial-setup
+EOF
+
+# The pipewire snap's user-scoped audio daemons get socket/dbus-activated
+# in EVERY user manager, including the greeter's and the initial-setup
+# wizard's. Those minimal system accounts have no usable session bus and
+# their AppArmor confinement rejects creating pipewire's lock file under
+# /run/user/<uid>, so the daemons fail in a noisy restart loop -- and no
+# audio is wanted in those sessions anyway. Regular user sessions are
+# unaffected (they are in neither group).
+for service in \
+    snap.pipewire.pipewire-bin.service \
+    snap.pipewire.wireplumber-bin.service \
+    snap.pipewire.pipewire-pulse.service
+do
+    mkdir -p "/etc/systemd/user/${service}.d"
+    cat >"/etc/systemd/user/${service}.d/70-gdm-skip.conf" <<'EOF'
+# Do not run audio daemons in gdm-greeter or initial-setup sessions
+[Unit]
+ConditionGroup=!gdm
+ConditionGroup=!gnome-initial-setup
 EOF
 done
 

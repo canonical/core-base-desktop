@@ -1,5 +1,7 @@
 #!/bin/bash -e
 
+# These are unneeded (and fail noisily) in greeter and initial-setup
+# sessions.
 for service in \
     snap.ubuntu-desktop-session.screencast-service.service \
     snap.ubuntu-desktop-session.ibus-portal-service.service
@@ -7,7 +9,34 @@ do
     dropin="etc/systemd/user/${service}.d/70-gdm-skip.conf"
     test -f "$dropin"
     grep -qx 'ConditionGroup=!gdm' "$dropin"
+    grep -qx 'ConditionGroup=!gnome-initial-setup' "$dropin"
 done
+
+# The wizard session needs the permission store (xdg-desktop-portal,
+# activated by ubuntu_init, fails without it) -- only the greeter skips.
+dropin=etc/systemd/user/snap.ubuntu-desktop-session.xdg-permission-store.service.d/70-gdm-skip.conf
+test -f "$dropin"
+grep -qx 'ConditionGroup=!gdm' "$dropin"
+! grep -qx 'ConditionGroup=!gnome-initial-setup' "$dropin"
+
+# The pipewire snap's user daemons fail noisily (no session bus, lockfile
+# mknod denied) in greeter/initial-setup managers, and no audio is wanted
+# there.
+for service in \
+    snap.pipewire.pipewire-bin.service \
+    snap.pipewire.wireplumber-bin.service \
+    snap.pipewire.pipewire-pulse.service
+do
+    dropin="etc/systemd/user/${service}.d/70-gdm-skip.conf"
+    test -f "$dropin"
+    grep -qx 'ConditionGroup=!gdm' "$dropin"
+    grep -qx 'ConditionGroup=!gnome-initial-setup' "$dropin"
+done
+
+dropin=etc/systemd/user/user-session-migration.service.d/70-gdm-skip.conf
+test -f "$dropin"
+grep -qx 'ConditionGroup=!gdm' "$dropin"
+grep -qx 'ConditionGroup=!gnome-initial-setup' "$dropin"
 
 dropin=etc/systemd/user/ssh-agent.service.d/70-gdm-skip.conf
 test -f "$dropin"
