@@ -84,6 +84,17 @@ fi
 
 # We're now providing our own version of /etc/passwd and others since we want
 # to remain compatible with UIDs and GIDs from core 16.
+#
+# NOTE: no "gnome-initial-setup" USER is baked here on purpose (only the
+# group, see below). GDM prefers a pre-existing static account of that
+# name for its initial-setup session, but such a session always fails on
+# this image (GDM hands it the greeter's XDG_RUNTIME_DIR, so its session
+# bus never starts) and the account wouldn't be in the polkit-privileged
+# gnome-initial-setup group anyway. With no static account, GDM creates
+# its own transient "gnome-initial-setup" user via AccountsService/adduser
+# (extrausers database), which lands in the baked gnome-initial-setup
+# group (gid 996) and works end-to-end -- including zero failed display
+# attempts on boot.
 
 echo "Providing the final passwd file"
 cat > /etc/passwd <<EOF
@@ -119,7 +130,6 @@ polkitd:x:111:120:polkit:/nonexistent:/usr/sbin/nologin
 dhcpcd:x:107:65534:DHCP Client Daemon,,,:/usr/libexec:/bin/false
 systemd-coredump:x:999:999:systemd Core Dumper:/:/usr/sbin/nologin
 gdm:x:200:200:Gnome Display Manager:/var/lib/gdm3:/bin/false
-gnome-initial-setup:x:201:65534::/run/gnome-initial-setup/:/bin/false
 colord:x:202:202:colord colour management daemon:/var/lib/colord:/usr/sbin/nologin
 geoclue:x:203:203::/var/lib/geoclue:/bin/false
 pipewire:x:204:204:Pipewire,,,:/proc:/usr/sbin/nologin
@@ -164,7 +174,6 @@ polkitd:!*:19690::::::
 dhcpcd:!:19835::::::
 systemd-coredump:!*:99999::::::
 gdm:*:18459:0:99999:7:::
-gnome-initial-setup:*:18495:0:99999:7:::
 colord:*:18495:0:99999:7:::
 geoclue:*:18459:0:99999:7:::
 pipewire:*:18495:0:99999:7:::
@@ -240,7 +249,7 @@ geoclue:x:203:
 pipewire:x:204:
 rtkit:x:205:
 scanner:x:206:
-provd:x:207:gnome-initial-setup
+provd:x:207:
 gnome-initial-setup:x:996:
 EOF
 cp /etc/group /etc/group.orig # We make a copy for a later sanity-compare
@@ -312,7 +321,7 @@ geoclue:!::
 pipewire:!::
 rtkit:!::
 scanner:!::
-provd:!::gnome-initial-setup
+provd:!::
 gnome-initial-setup:!*::
 EOF
 cp /etc/gshadow /etc/gshadow.orig # We make a copy for a later sanity-compare
