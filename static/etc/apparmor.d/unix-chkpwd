@@ -1,14 +1,35 @@
-# Override of the upstream unix-chkpwd profile: the stock profile already
-# anticipated pam_extrausers.so needing /var/lib/extrausers/shadow (see the
-# upstream TODO comment below) but never added read access to
-# /var/lib/extrausers/passwd. Without it, unix_chkpwd/pam_extrausers_chkpwd
-# can't resolve the username via NSS (libnss_extrausers), so every password
-# check fails with "user unknown" -- harmless from an unconfined caller
-# (e.g. SDDM/GDM greeters running as root, which read /etc/shadow directly
-# and never need to exec this helper), but fatal for PAM checks made from
-# confined, unprivileged processes such as kscreenlocker_worker during
-# screen unlock.
-profile unix-chkpwd /{,usr/}{,s}bin/unix_chkpwd flags=(attach_disconnected.path=/att/unix-chkpwd/) {
+# Override of the upstream (apparmor.d project) unix-chkpwd profile,
+# shipped because Ubuntu Core's extrausers PAM scheme needs it from a
+# confined, unprivileged caller:
+#
+# - the stock apparmor.d profile already anticipated
+#   pam_extrausers.so needing /var/lib/extrausers/shadow (see the
+#   upstream TODO comment below) but never added read access to
+#   /var/lib/extrausers/passwd (or group). Without the passwd read,
+#   unix_chkpwd can't resolve the username via NSS
+#   (libnss_extrausers), so every password check fails with
+#   "user unknown" -- harmless from an unconfined caller (e.g. SDDM/GDM
+#   greeters running as root, which read /etc/shadow directly and never
+#   need to exec this helper), but fatal for PAM checks made from
+#   confined, unprivileged processes such as kscreenlocker_worker
+#   during screen unlock.
+#
+# NOTE for future edits: this profile is loaded by apparmor.service
+# (apparmor_parser over the whole /etc/apparmor.d tree), not by snapd.
+# It must be parseable with only the tunables/abstractions this base
+# ships: include <tunables/global> first (upstream apparmor.d project
+# profiles rely on their own global tunables defining @{exec_path},
+# which don't exist here) and define @{exec_path} explicitly, or the
+# profile fails with "Failed to find declaration for: ..." and takes
+# the whole apparmor.service down with it.
+
+abi <abi/5.0>,
+
+include <tunables/global>
+
+@{exec_path} = /{,usr/}{,s}bin/unix_chkpwd
+
+profile unix-chkpwd @{exec_path} flags=(attach_disconnected.path=/att/unix-chkpwd/) {
   include <abstractions/base>
   include <abstractions/nameservice>
 
@@ -43,6 +64,7 @@ profile unix-chkpwd /{,usr/}{,s}bin/unix_chkpwd flags=(attach_disconnected.path=
 
   # disconnected paths - their non-disconnected counterpart is allowed via abstractions
   /att/unix-chkpwd/run/authd.sock rw,
+  /att/unix-chkpwd/run/nslcd/socket rw,
   /att/unix-chkpwd/run/systemd/journal/dev-log w,
   /att/unix-chkpwd/run/systemd/userdb/io.systemd.DynamicUser rw,
   /att/unix-chkpwd/run/systemd/userdb/org.gnome.DisplayManager rw,
