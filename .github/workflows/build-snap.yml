@@ -11,6 +11,13 @@ permissions:
 
 jobs:
   snap:
+    strategy:
+      fail-fast: false
+      matrix:
+        # plain: GNOME (ubuntu-desktop-init wizard, no cloud-init needed).
+        # cloud-init: KDE (seed.iso-driven guest account via cloud-init;
+        # see build-github.sh for why this split exists).
+        variant: [plain, cloud-init]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,25 +33,33 @@ jobs:
           # LXD bridge networking ("no network access" while creating the
           # build instance) - see snapcore/action-build ensureLXDNetwork.
           sudo iptables -P FORWARD ACCEPT
-      - name: Build core26-desktop snap
+      - name: Build core26-desktop snap (${{ matrix.variant }})
         run: |
           sudo snap install snapcraft --classic --channel=edge
           # Re-exec with fresh group membership so snapcraft can talk to
           # the LXD socket (see action-build's sudo -u "$USER" -E pattern).
-          sudo -u "$USER" -E ./build-github.sh
+          sudo -u "$USER" -E ./build-github.sh "${{ matrix.variant }}"
       - name: Publish to desktop-26-latest release
         if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
+          ASSET: ${{ matrix.variant == 'cloud-init' && 'core26-desktop-cloudinit.snap' || 'core26-desktop.snap' }}
         run: |
-          gh release view desktop-26-latest -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
-            || gh release create desktop-26-latest -R "$GITHUB_REPOSITORY" \
-                 --title "desktop/26 latest snap" \
-                 --notes "Rolling latest desktop/26 snap build; assets are replaced on every green build."
-          gh release upload desktop-26-latest core26-desktop.snap -R "$GITHUB_REPOSITORY" --clobber
+          # Both matrix legs publish to the same release; retry/poll the
+          # create so a race between the two concurrent jobs creating it
+          # at once doesn't fail either leg's upload.
+          for i in $(seq 1 10); do
+            gh release view desktop-26-latest -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break
+            gh release create desktop-26-latest -R "$GITHUB_REPOSITORY" \
+              --title "desktop/26 latest snap" \
+              --notes "Rolling latest desktop/26 snap build; assets are replaced on every green build." \
+              2>/dev/null && break
+            sleep 5
+          done
+          gh release upload desktop-26-latest "$ASSET" -R "$GITHUB_REPOSITORY" --clobber
       - uses: actions/upload-artifact@v4
         with:
-          name: snap
-          path: core26-desktop.snap
+          name: snap-${{ matrix.variant }}
+          path: ${{ matrix.variant == 'cloud-init' && 'core26-desktop-cloudinit.snap' || 'core26-desktop.snap' }}
           compression-level: 0
           retention-days: 14
