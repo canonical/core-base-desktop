@@ -1,0 +1,51 @@
+# Override of the upstream unix-chkpwd profile: the stock profile already
+# anticipated pam_extrausers.so needing /var/lib/extrausers/shadow (see the
+# upstream TODO comment below) but never added read access to
+# /var/lib/extrausers/passwd. Without it, unix_chkpwd/pam_extrausers_chkpwd
+# can't resolve the username via NSS (libnss_extrausers), so every password
+# check fails with "user unknown" -- harmless from an unconfined caller
+# (e.g. SDDM/GDM greeters running as root, which read /etc/shadow directly
+# and never need to exec this helper), but fatal for PAM checks made from
+# confined, unprivileged processes such as kscreenlocker_worker during
+# screen unlock.
+profile unix-chkpwd /{,usr/}{,s}bin/unix_chkpwd flags=(attach_disconnected.path=/att/unix-chkpwd/) {
+  include <abstractions/base>
+  include <abstractions/nameservice>
+
+  # Temporarily needed until fd delegation lands
+  # Also needed while delegation from unconfined is broken
+  include <abstractions/consoles>
+
+  # To write records to the kernel auditing log.
+  capability audit_write,
+  # To read shadow with 000 permissions.
+  capability dac_read_search,
+
+  network netlink raw,
+
+  @{exec_path} mr,
+
+  /etc/shadow r,
+
+  # systemd userdb, used in nspawn
+  /run/host/userdb/*.user r,
+  /run/host/userdb/*.user-privileged r,
+
+  # TODO: we might want to move these into an abstraction
+  # for pam_extrausers.so
+  /var/lib/extrausers/passwd r,
+  /var/lib/extrausers/group r,
+  /var/lib/extrausers/shadow r,
+
+  # file_inherit
+  owner /dev/pts/[0-9]* rw,
+  owner /dev/tty[0-9]* rw,
+
+  # disconnected paths - their non-disconnected counterpart is allowed via abstractions
+  /att/unix-chkpwd/run/authd.sock rw,
+  /att/unix-chkpwd/run/systemd/journal/dev-log w,
+  /att/unix-chkpwd/run/systemd/userdb/io.systemd.DynamicUser rw,
+  /att/unix-chkpwd/run/systemd/userdb/org.gnome.DisplayManager rw,
+
+  include if exists <local/unix-chkpwd>
+}
