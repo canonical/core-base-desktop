@@ -66,6 +66,7 @@ case "${SNAP_BUILD_VARIANT:-}" in
             /etc/colord
             /etc/dconf
             /etc/firefox
+            /etc/gdm3
             /var/lib/AccountsService
             /var/lib/gdm3
             /usr/share/wayland-sessions
