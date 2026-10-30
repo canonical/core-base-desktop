@@ -38,6 +38,7 @@ dirs=(
     /etc/security/pwquality.conf
     /etc/ssh
     /etc/sudoers.d
+    /etc/gdm3
     /etc/sysctl.d
     /etc/systemd
     /etc/udev/rules.d
