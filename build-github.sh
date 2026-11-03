@@ -9,21 +9,27 @@
 # SNAPCRAFT_IMAGE_INFO, and the same split upstream canonical/core-base
 # release.yaml's `variant: [regular, fips, cloud-init]` matrix uses:
 #
-#   - plain (default): what the GNOME image consumes. No cloud-init;
-#     first-boot account creation is handled by ubuntu-desktop-init's
-#     wizard instead (2026-10-09 decision, when GNOME was the only
-#     desktop and nothing needed cloud-init).
-#   - cloud-init: what the KDE image consumes. KDE has no such wizard
-#     yet, so the guest account is created by cloud-init from a
-#     companion seed.iso at first boot (see
-#     ubuntu-core-desktop/build-cloud-init.sh) - that requires
-#     cloud-init actually be present in the base snap, which only this
-#     variant includes (snapcraft.yaml: SLICES+=(cloud-init_bins) iff
-#     SNAP_BUILD_VARIANT=cloud-init). Discovered missing the hard way:
-#     a built KDE image's seed.iso was silently never processed,
-#     because the "plain" base snap it was built against has no
-#     cloud-init at all to consume it (GH run 38334812565 booted fine
-#     but `getpwnam(guest)` failed - no account was ever created).
+#   - plain (default): what both published images (GNOME and KDE)
+#     consume since 2026-11-03. No cloud-init; first-boot account
+#     creation is handled interactively by the first-boot wizard
+#     (GNOME: ubuntu-desktop-init; KDE: plasma-setup), so no baked
+#     credentials and no seed.iso.
+#   - cloud-init: only needed for deliberate --user builds (either
+#     desktop): build.sh then generates a companion seed.iso
+#     (ubuntu-core-desktop/build-cloud-init.sh) and cloud-init
+#     creates the account at first boot - which requires cloud-init
+#     actually be present in the base snap, and only this variant
+#     includes it (snapcraft.yaml: SLICES+=(cloud-init_bins) iff
+#     SNAP_BUILD_VARIANT=cloud-init). Before 2026-11-03 the KDE image
+#     consumed this variant (it had no wizard, so its guest account
+#     came from a seed.iso); discovered missing the hard way back
+#     then: a built KDE image's seed.iso was silently never
+#     processed, because the "plain" base snap it was built against
+#     has no cloud-init at all to consume it (GH run 38334812565
+#     booted fine but `getpwnam(guest)` failed - no account was ever
+#     created). Local dev builds with a personal --user account use
+#     this variant too, via this repo's local go-build (which writes
+#     build-env the same way).
 #
 # The fakeroot repack is kept verbatim from
 # localdev_patch_built_snap_mksquashfs (local-dev/go-build-lib.sh): it
