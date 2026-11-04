@@ -87,6 +87,25 @@ install:
 		"$$f" $(DESTDIR);				\
 	done
 
+	# The vendored D-Bus service activation files in
+	# static/usr/share/dbus-1/services route user-session service names
+	# to confined /snap/bin/<snap>.<app> activation, and must survive
+	# the greeter-trim hooks: 002.1 removes every
+	# org.gnome.Settings*/org.freedesktop.impl.portal.Secret service
+	# file the apt-staged gnome-control-center/xdg-desktop-portal
+	# packages drop in, with globs that also match the vendored copies.
+	#
+	# Only the org.gnome.Settings* files are restored here. The vendored
+	# org.freedesktop.impl.portal.Secret.service is deliberately left
+	# trimmed: this base is shared with the KDE image, whose model has
+	# plasma-desktop-session (not ubuntu-desktop-session), so a
+	# GNOME-keyring activation file in the shared base would dangle
+	# there. Give the Secret portal backend its own cross-desktop
+	# placement before restoring it.
+	set -eu; for svc in static/usr/share/dbus-1/services/org.gnome.Settings*.service; do \
+		/bin/cp -a "$$svc" $(DESTDIR)/usr/share/dbus-1/services/; \
+	done
+
 	# remove the auth file again
 	rm -f $(DESTDIR)/etc/apt/auth.conf.d/01-fips.conf
 

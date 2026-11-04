@@ -1,0 +1,61 @@
+#!/bin/bash -e
+
+# The 002.1-add-gdm greeter-trim hook removes the apt-staged
+# gnome-control-center/xdg-desktop-portal D-Bus service files with
+# globs that also match the project's vendored activation files in
+# static/usr/share/dbus-1/services (the Makefile copies static/ into
+# the tree before the *.chroot hooks run). The Makefile re-copies the
+# vendored org.gnome.Settings* files afterwards; assert the final tree
+# really has them, with the confined-snap Exec and label intact -- a
+# same-named apt-staged file surviving instead would have neither.
+# (`test ! -e`, not `! test -e`: set -e exempts inverted commands, so
+# a bare `!` could never fail this script.)
+check_settings_service() {
+    name="$1"
+    exec_line="$2"
+    label="$3"
+    file="usr/share/dbus-1/services/$name.service"
+    test -f "$file"
+    grep -Fxq "Name=$name" "$file"
+    grep -Fxq "Exec=$exec_line" "$file"
+    grep -Fxq "AssumedAppArmorLabel=$label" "$file"
+}
+
+check_settings_service \
+    org.gnome.Settings \
+    "/snap/bin/ubuntu-desktop-session.gnome-control-center --gapplication-service" \
+    snap.ubuntu-desktop-session.gnome-control-center
+check_settings_service \
+    org.gnome.Settings.SearchProvider \
+    /snap/bin/ubuntu-desktop-session.gnome-control-center-search-provider \
+    snap.ubuntu-desktop-session.gnome-control-center-search-provider
+check_settings_service \
+    org.gnome.Settings.GlobalShortcutsProvider \
+    /snap/bin/ubuntu-desktop-session.gnome-control-center-global-shortcuts-provider \
+    snap.ubuntu-desktop-session.gnome-control-center-global-shortcuts-provider
+
+# The host portal units and activation files are deliberately removed
+# (the portals are snap D-Bus-activated daemons; host copies would
+# compete). They must remain absent, not be resurrected by the re-copy.
+for file in \
+    usr/lib/systemd/user/xdg-desktop-portal.service \
+    usr/lib/systemd/user/xdg-desktop-portal-gnome.service \
+    usr/lib/systemd/user/xdg-desktop-portal-gtk.service \
+    usr/lib/systemd/user/xdg-permission-store.service \
+    usr/lib/systemd/user/xdg-document-portal.service \
+    usr/share/dbus-1/services/org.freedesktop.portal.Desktop.service \
+    usr/share/dbus-1/services/org.freedesktop.portal.Documents.service \
+    usr/share/dbus-1/services/org.freedesktop.impl.portal.desktop.gnome.service \
+    usr/share/dbus-1/services/org.freedesktop.impl.portal.desktop.gtk.service \
+    usr/share/dbus-1/services/org.freedesktop.impl.portal.PermissionStore.service
+do
+    test ! -e "$file"
+done
+
+# The vendored org.freedesktop.impl.portal.Secret.service is
+# deliberately NOT restored: this base is shared with the KDE image,
+# whose model has plasma-desktop-session (not ubuntu-desktop-session),
+# so the GNOME-keyring activation file would dangle there. If this
+# assertion ever fails, the Secret backend got a cross-desktop
+# placement -- update this test together with that change.
+test ! -e usr/share/dbus-1/services/org.freedesktop.impl.portal.Secret.service
