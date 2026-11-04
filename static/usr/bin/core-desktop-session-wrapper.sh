@@ -47,8 +47,18 @@ add_stale_environment_var() {
     stale_environment_vars+=("$name")
 }
 
+# WAYLAND_SOCKET is deliberately NOT in this list. Clearing a stale
+# activation-environment value means setting it to an empty string
+# (D-Bus has no way to unset one), and libwayland treats a set-but-empty
+# WAYLAND_SOCKET as a hard override pointing at an invalid fd rather
+# than falling back to the $XDG_RUNTIME_DIR/wayland-N socket. Every
+# D-Bus-activated Wayland client (e.g. gnome-control-center via the
+# org.gnome.Settings.service activation file) would then fail to
+# connect and fall back to X11 ("Failed to open display"). Nothing
+# propagates WAYLAND_SOCKET into the session bus daemon's own
+# environment on this image, so there is nothing to clear here.
 for name in \
-    DISPLAY XAUTHORITY WAYLAND_DISPLAY WAYLAND_SOCKET \
+    DISPLAY XAUTHORITY WAYLAND_DISPLAY \
     GNOME_SHELL_SESSION_MODE GNOME_SETUP_DISPLAY; do
     add_stale_environment_var "$name"
 done
