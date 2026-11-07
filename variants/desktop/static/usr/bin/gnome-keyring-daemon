@@ -1,0 +1,59 @@
+#!/bin/sh
+set -eu
+
+# PAM keyring handoff for the thin desktop variant.
+#
+# pam_gnome_keyring.so (baked for the gdm-* PAM stacks, "session
+# optional pam_gnome_keyring.so auto_start") execs the daemon via the
+# path embedded in the module, /usr/bin/gnome-keyring-daemon, as the
+# LOGGING-IN user during the PAM session phase, then writes the login
+# password to the daemon's control socket to unlock the login keyring.
+# The baked gnome-keyring-daemon.service (ExecStart=/usr/bin/gnome-
+# keyring-daemon) and any other rootfs-side starter go through the same
+# path. The fat base shipped the real daemon binary here; the thin
+# variant ships it in the gnome-desktop-runtime content snap instead,
+# together with its shared libraries.
+#
+# A bare symlink to the content snap binary would not work: the PAM
+# environment is scrubbed (no LD_LIBRARY_PATH) and the rootfs ld.so
+# cache does not cover /snap, so the loader would not find the daemon's
+# libraries (libglib, libgcrypt, libgck, libgcr-base, ...). This
+# wrapper supplies the content snap's library search path and hands
+# over to the real daemon.
+#
+# AppArmor: the gdm profile (which contains the gdm-session-worker that
+# runs the PAM stack) allows the fat-base path unconfined
+# ("/usr/bin/gnome-keyring-daemon Ux,"), so this wrapper and the exec'd
+# daemon run unconfined as the user, exactly like the fat base's real
+# binary did. No profile change is needed for the alias.
+
+content_root=/snap/gnome-desktop-runtime/current
+target=$content_root/usr/bin/gnome-keyring-daemon
+
+if [ ! -x "$target" ]; then
+    echo "gnome-keyring-daemon: content runtime unavailable: $target" >&2
+    exit 127
+fi
+
+library_paths=
+for path in \
+    "$content_root"/usr/lib/*-linux-gnu \
+    "$content_root"/lib/*-linux-gnu \
+    "$content_root"/usr/lib \
+    "$content_root"/lib
+do
+    if [ -d "$path" ]; then
+        library_paths="${library_paths:+$library_paths:}$path"
+    fi
+done
+if [ -n "$library_paths" ]; then
+    if [ -n "${LD_LIBRARY_PATH-}" ]; then
+        library_paths="$library_paths:$LD_LIBRARY_PATH"
+    fi
+    LD_LIBRARY_PATH=$library_paths
+    export LD_LIBRARY_PATH
+fi
+
+# pam_gnome_keyring parses the daemon's stdout for
+# GNOME_KEYRING_CONTROL; keep diagnostics on stderr only.
+exec "$target" "$@"
