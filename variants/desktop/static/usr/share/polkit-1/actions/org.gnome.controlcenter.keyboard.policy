@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1.0/policyconfig.dtd">
+<policyconfig>
+  <vendor>The GNOME Project</vendor>
+  <vendor_url>http://www.gnome.org/</vendor_url>
+  <action id="org.gnome.controlcenter.set-keyboard">
+    <description gettext-domain="gnome-control-center-2.0">Change system keyboard settings</description>
+    <message gettext-domain="gnome-control-center-2.0">To change global keyboard settings, you need to authenticate.</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/gnome-control-center-set-debian-keyboard</annotate>
+    <annotate key="org.freedesktop.policykit.imply">org.freedesktop.locale1.set-keyboard</annotate>
+  </action>
+</policyconfig>
