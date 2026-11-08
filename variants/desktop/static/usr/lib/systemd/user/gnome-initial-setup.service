@@ -22,6 +22,12 @@ Type=simple
 # GSETTINGS_SCHEMA_DIR + GDK_PIXBUF_MODULE_FILE + GIO_EXTRA_MODULES - the
 # same content-snap env split gnome-content-launch applies for the session
 # side). provd's own env lives in its snap's app environment.
-ExecStart=/bin/sh -c 'mkdir -p /run/gnome-initial-setup/desktop-provision /run/gnome-initial-setup/.cache; until [ -S /run/gnome-initial-setup/desktop-provision/init.socket ]; do sleep 1; done; exec env LD_LIBRARY_PATH=/snap/gnome-desktop-runtime/current/usr/lib/x86_64-linux-gnu:/snap/provd/current/usr/lib/x86_64-linux-gnu GIO_EXTRA_MODULES=/snap/gnome-desktop-runtime/current/usr/lib/x86_64-linux-gnu/gio/modules GSETTINGS_SCHEMA_DIR=/snap/gnome-desktop-runtime/current/usr/share/glib-2.0/schemas GDK_PIXBUF_MODULE_FILE=/snap/gnome-desktop-runtime/current/usr/lib/x86_64-linux-gnu/gdk-pixbuf-2.0/2.10.0/loaders.cache DCONF_PROFILE= DESKTOP_PROVISION_PATH=/usr/share/desktop-provision DBUS_SESSION_BUS_ADDRESS="unix:path=$$XDG_RUNTIME_DIR/bus" /snap/ubuntu-desktop-init/current/bin/ubuntu_init'
+#
+# The multiarch placeholder token in ExecStart below (an @-delimited
+# word) is substituted with the build environment's Debian multiarch
+# triplet when the variant payload is applied
+# (tools/apply-variant-payload.sh); it is not a systemd specifier and
+# must not be read as a literal path component.
+ExecStart=/bin/sh -c 'mkdir -p /run/gnome-initial-setup/desktop-provision /run/gnome-initial-setup/.cache; until [ -S /run/gnome-initial-setup/desktop-provision/init.socket ]; do sleep 1; done; exec env LD_LIBRARY_PATH=/snap/gnome-desktop-runtime/current/usr/lib/@MULTIARCH@:/snap/provd/current/usr/lib/@MULTIARCH@ GIO_EXTRA_MODULES=/snap/gnome-desktop-runtime/current/usr/lib/@MULTIARCH@/gio/modules GSETTINGS_SCHEMA_DIR=/snap/gnome-desktop-runtime/current/usr/share/glib-2.0/schemas GDK_PIXBUF_MODULE_FILE=/snap/gnome-desktop-runtime/current/usr/lib/@MULTIARCH@/gdk-pixbuf-2.0/2.10.0/loaders.cache DCONF_PROFILE= DESKTOP_PROVISION_PATH=/usr/share/desktop-provision DBUS_SESSION_BUS_ADDRESS="unix:path=$$XDG_RUNTIME_DIR/bus" /snap/ubuntu-desktop-init/current/bin/ubuntu_init'
 ExecStopPost=-/usr/libexec/gnome-session-ctl --shutdown
 Restart=no

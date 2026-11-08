@@ -47,6 +47,58 @@ if [ -d "$payload/static" ]; then
         echo "I: copying $(basename "$entry") into the rootfs"
         cp -a "$entry" "$rootfs/"
     done
+
+    # (a2) multiarch parameterization: payload paths may express the
+    # Debian multiarch triplet with the @MULTIARCH@ placeholder (in
+    # directory names, symlink targets and file contents). Substitute
+    # the build environment's triplet, so a payload lands at the
+    # build architecture's multiarch paths instead of silently
+    # assuming amd64. On an amd64 build this substitutes
+    # x86_64-linux-gnu, i.e. exactly the paths the placeholder was
+    # written for - a functional no-op. The rootfs copy is transformed
+    # in place; the payload source tree is never modified.
+    placeholder='@MULTIARCH@'
+    triplet="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+
+    # a placeholder-named directory in the copied rootfs: if the
+    # destination (e.g. the chisel-staged /usr/lib/<triplet>) already
+    # exists, merge the copy into it, otherwise rename outright.
+    # Deepest first, so nested placeholder directories also resolve.
+    find "$rootfs" -depth -type d -name "*$placeholder*" -print0 |
+        while IFS= read -r -d '' src; do
+            dst="${src//$placeholder/$triplet}"
+            if [ -d "$dst" ]; then
+                cp -a "$src/." "$dst/"
+                rm -rf "$src"
+            else
+                mv "$src" "$dst"
+            fi
+        done
+
+    # placeholder occurrences inside copied regular files (e.g. the
+    # initial-setup unit's LD_LIBRARY_PATH / GIO / GDK pixbuf paths);
+    # payload-relative paths are mapped onto the (already renamed)
+    # rootfs locations
+    find "$payload/static" -type f -exec grep -lFZ -- "$placeholder" {} + |
+        while IFS= read -r -d '' src; do
+            rel="${src#"$payload/static"/}"
+            sed -i "s/$placeholder/$triplet/g" \
+                "$rootfs/${rel//$placeholder/$triplet}"
+        done
+
+    # placeholder occurrences inside copied symlink targets
+    find "$payload/static" -type l -print0 |
+        while IFS= read -r -d '' src; do
+            rel="${src#"$payload/static"/}"
+            dst="$rootfs/${rel//$placeholder/$triplet}"
+            [ -L "$dst" ] || continue
+            target="$(readlink "$dst")"
+            case "$target" in
+                *"$placeholder"*)
+                    ln -sfn "${target//$placeholder/$triplet}" "$dst"
+                    ;;
+            esac
+        done
 fi
 
 # Append a fragment to a file, keeping the file's trailing newline

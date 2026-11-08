@@ -153,6 +153,21 @@ printf '# testvar fstab fragment\n' \
 printf '# testvar writable.conf fragment\n' \
     > "$tmp/src/variants/testvar/writable.conf.d/20-test.conf"
 
+# the @MULTIARCH@ placeholder knob: a placeholder-named payload
+# directory (merging into a pre-existing rootfs directory, so a
+# chisel-staged /usr/lib/<triplet> is exercised), a placeholder symlink
+# target and placeholder file content must all resolve to the build
+# environment's multiarch triplet, and the placeholder path itself must
+# not survive into the rootfs
+triplet="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+mkdir -p "$tmp/rootfs/usr/lib/$triplet"
+printf 'pre-existing\n' > "$tmp/rootfs/usr/lib/$triplet/pre-existing"
+mkdir -p "$tmp/src/variants/testvar/static/usr/lib/@MULTIARCH@"
+printf 'marker for @MULTIARCH@\n' \
+    > "$tmp/src/variants/testvar/static/usr/lib/@MULTIARCH@/marker"
+ln -s /opt/example/@MULTIARCH@/lib \
+    "$tmp/src/variants/testvar/static/usr/lib/@MULTIARCH@/libexample.so"
+
 "$tmp/src/tools/apply-variant-payload.sh" "$tmp/rootfs" testvar
 
 cmp -s "$tmp/src/variants/testvar/static/usr/share/example/data" \
@@ -160,5 +175,13 @@ cmp -s "$tmp/src/variants/testvar/static/usr/share/example/data" \
 tail -1 "$tmp/rootfs/etc/fstab" | grep -q '^# testvar fstab fragment$'
 tail -1 "$tmp/rootfs/usr/lib/tmpfiles.d/core-writable.conf" \
     | grep -q '^# testvar writable.conf fragment$'
+
+[ "$(cat "$tmp/rootfs/usr/lib/$triplet/pre-existing")" = "pre-existing" ]
+sed "s/@MULTIARCH@/$triplet/g" \
+    "$tmp/src/variants/testvar/static/usr/lib/@MULTIARCH@/marker" |
+    cmp -s - "$tmp/rootfs/usr/lib/$triplet/marker"
+[ "$(readlink "$tmp/rootfs/usr/lib/$triplet/libexample.so")" = \
+    "/opt/example/$triplet/lib" ]
+[ ! -e "$tmp/rootfs/usr/lib/@MULTIARCH@" ]
 
 echo "variant payload knobs apply correctly"

@@ -11,20 +11,37 @@ set -eu
 # instead.
 #
 # The desktop payload ships the same symlinks under
-# variants/desktop/static/usr/lib/x86_64-linux-gnu/, but they have been
-# observed to be deleted by cleanup hooks running after the payload
-# while sibling files from the same copy survive. Recreate them
-# idempotently here, after all other hooks, so the resolution is
-# guaranteed in the final rootfs. Only names the rootfs does not
-# already carry are linked, so nothing is shadowed.
+# variants/desktop/static/usr/lib/@MULTIARCH@/ (the @MULTIARCH@
+# placeholder is substituted with the build's multiarch triplet when
+# the payload is applied), but they have been observed to be deleted by
+# cleanup hooks running after the payload while sibling files from the
+# same copy survive. Recreate them idempotently here, after all other
+# hooks, so the resolution is guaranteed in the final rootfs. Only
+# names the rootfs does not already carry are linked, so nothing is
+# shadowed.
 #
 # Desktop variant only: a regular/cloud-init build must not acquire
 # GNOME runtime symlinks pointing at a content snap it never mounts.
 
 if [ "${SNAP_BUILD_VARIANT:-}" = desktop ]; then
 
-libdir=/usr/lib/x86_64-linux-gnu
-content=/snap/gnome-desktop-runtime/current/usr/lib/x86_64-linux-gnu
+# The multiarch triplet of the build architecture. Hooks run inside the
+# assembled rootfs chroot, where dpkg-architecture is not available, so
+# derive it from the kernel architecture like hook 005 does. A native
+# arm64 build environment yields aarch64-linux-gnu; cross-building is
+# not supported (the whole build must run in the target architecture's
+# environment - see docs/arm64-recon.md). Fail loudly on anything else.
+case "$(uname -m)" in
+    x86_64) triplet=x86_64-linux-gnu ;;
+    aarch64) triplet=aarch64-linux-gnu ;;
+    *)
+        echo "E: unsupported build architecture (uname -m = '$(uname -m)')" >&2
+        exit 1
+        ;;
+esac
+
+libdir=/usr/lib/$triplet
+content=/snap/gnome-desktop-runtime/current/usr/lib/$triplet
 
 # The link TARGETS live in the content snap and do not exist in this
 # build chroot (/snap is only mounted at runtime); only create the
@@ -46,9 +63,9 @@ do
 done
 
 # mutter's GBM backend and mesa's DRI drivers are dlopen'd from
-# hardcoded subdirectory paths (/usr/lib/x86_64-linux-gnu/gbm and
-# .../dri), which LD_LIBRARY_PATH cannot influence; link the whole
-# directories through to the content snap. The same goes for the GLVND
+# hardcoded subdirectory paths under /usr/lib/$triplet (gbm and dri),
+# which LD_LIBRARY_PATH cannot influence; link the whole directories
+# through to the content snap. The same goes for the GLVND
 # EGL vendor configuration (without it libEGL has no vendor and mutter
 # aborts with "GPU not supported by EGL"), mutter's mandatory XKB
 # keymap tree and mesa's drirc defaults.
