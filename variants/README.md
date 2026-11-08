@@ -67,6 +67,28 @@ A variant without a payload directory is fine — the `cloud-init`
 variant predates this mechanism and lives entirely in part/hook
 branches on `$SNAP_BUILD_VARIANT`.
 
+# Architecture support
+
+The desktop variant is **amd64-only** for now. This is declared twice,
+so a foreign-arch build fails loudly instead of silently producing an
+amd64-assuming base:
+
+* `snapcraft.yaml` declares `platforms: amd64:` — snapcraft refuses to
+  compute a build plan on any other architecture.
+* `tools/build-variant.sh` checks the host multiarch triplet against
+  the declared platforms and exits with an error otherwise.
+
+The payload expresses multiarch paths with the `@MULTIARCH@`
+placeholder, substituted with the build environment's Debian
+multiarch triplet at apply time (see the "Variant payload" section),
+so the amd64 assumption is gone from the tree itself. The remaining
+arm64 gap is the payload's ELF set (7 binaries, currently amd64) and
+the arm64 snap/toolchain/build-environment work: **arm64 is planned
+but hardware-gated** — it needs a native arm64 build environment (TCG
+emulation was evaluated and rejected). `docs/arm64-recon.md` is the
+full recon and sequenced roadmap for that work (§1 lists every site,
+§6 the phases; the payload ELFs are §1.4).
+
 # Snap naming
 
 `snapcraft.yaml` keeps the static project name `core26` (changing it
