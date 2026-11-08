@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# Verifies the variant payload machinery (tools/apply-variant-payload.sh):
+#
+# * applying the desktop variant's (currently empty) payload to the
+#   rootfs files it touches must not change them;
+# * a synthetic payload must have its knobs applied (static file
+#   copied, fstab and core-writable.conf fragments appended).
+
+set -eu
+
+src="$(cd "$(dirname "$0")/.." && pwd)"
+sysroot="${PWD}"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+
+# --- the shipped desktop payload must be a no-op ---
+
+mkdir -p "$tmp/rootfs/etc" "$tmp/rootfs/usr/lib/tmpfiles.d"
+cp "$sysroot/etc/fstab" "$tmp/rootfs/etc/fstab"
+cp "$sysroot/usr/lib/tmpfiles.d/core-writable.conf" \
+   "$tmp/rootfs/usr/lib/tmpfiles.d/core-writable.conf"
+
+"$src/tools/apply-variant-payload.sh" "$tmp/rootfs" desktop
+
+cmp "$sysroot/etc/fstab" "$tmp/rootfs/etc/fstab"
+cmp "$sysroot/usr/lib/tmpfiles.d/core-writable.conf" \
+    "$tmp/rootfs/usr/lib/tmpfiles.d/core-writable.conf"
+
+echo "desktop variant payload applies as a no-op"
+
+# --- a synthetic payload must exercise every knob ---
+
+mkdir -p "$tmp/src/tools" \
+         "$tmp/src/variants/testvar/static/usr/share/example" \
+         "$tmp/src/variants/testvar/fstab.d" \
+         "$tmp/src/variants/testvar/writable.conf.d"
+cp "$src/tools/apply-variant-payload.sh" "$tmp/src/tools/"
+printf 'example\n' > "$tmp/src/variants/testvar/static/usr/share/example/data"
+printf '# testvar fstab fragment\n' \
+    > "$tmp/src/variants/testvar/fstab.d/10-test.conf"
+printf '# testvar writable.conf fragment\n' \
+    > "$tmp/src/variants/testvar/writable.conf.d/20-test.conf"
+
+"$tmp/src/tools/apply-variant-payload.sh" "$tmp/rootfs" testvar
+
+cmp -s "$tmp/src/variants/testvar/static/usr/share/example/data" \
+       "$tmp/rootfs/usr/share/example/data"
+tail -1 "$tmp/rootfs/etc/fstab" | grep -q '^# testvar fstab fragment$'
+tail -1 "$tmp/rootfs/usr/lib/tmpfiles.d/core-writable.conf" \
+    | grep -q '^# testvar writable.conf fragment$'
+
+echo "variant payload knobs apply correctly"
