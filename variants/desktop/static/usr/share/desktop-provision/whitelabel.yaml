@@ -1,0 +1,11 @@
+mode: core-desktop
+pages:
+  accessibility:
+    # The a11y page is non-functional without sprovd. It's also not
+    # clear it placed settings in a place the ubuntu-desktop-session
+    # snap would see them.
+    visible: false
+  eula:
+    visible: false
+  ubuntu-pro-onboarding:
+    visible: false

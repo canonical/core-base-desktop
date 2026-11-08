@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -eux
+
+# Desktop variant only: the first-boot wizard (provd keyboard page) needs
+# localed's SetX11Keyboard. Debian's systemd ships
+# usr/share/dbus-1/system.d/org.freedesktop.locale1.read-only.conf, a
+# D-Bus policy denying SetVConsoleKeyboard/SetX11Keyboard to everyone,
+# loaded last alphabetically so it overrides the allow policy; the fat
+# base removed it for exactly this reason (the dbus policy rejection
+# "Rejected send message, 3 matched rules ... member=SetX11Keyboard"
+# hits provd before polkit is ever consulted). A chroot rm is enough
+# here: hooks run against the merged rootfs, so this covers every part
+# that stages a copy.
+if [ "${SNAP_BUILD_VARIANT:-}" = desktop ]; then
+    rm -f /usr/share/dbus-1/system.d/org.freedesktop.locale1.read-only.conf
+fi
