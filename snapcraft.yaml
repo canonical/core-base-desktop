@@ -7,6 +7,15 @@ confinement: strict
 type: base
 build-base: core26
 grade: stable
+# The desktop variant is amd64-only for now: the payload's ELF set and
+# the GNOME content closure are hand-carried from amd64. arm64 is
+# planned but hardware-gated (it needs a native arm64 build
+# environment); see docs/arm64-recon.md. Declaring the platform makes a
+# foreign-arch build fail loudly at build-plan computation instead of
+# producing an amd64-assuming base; tools/build-variant.sh enforces the
+# same declaration, earlier and with the arm64 story attached.
+platforms:
+  amd64:
 assumes:
   - snapd2.55.5
   # This is uncommented in our github builds for riscv64

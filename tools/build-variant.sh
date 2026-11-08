@@ -38,6 +38,47 @@ case "$variant" in
         ;;
 esac
 
+# Refuse to build on an architecture the project does not declare.
+# snapcraft.yaml's "platforms" is the single source of truth (snapcraft
+# itself fails the build plan on a foreign architecture, but this check
+# fails earlier and with the arm64 story attached): the desktop
+# variant's payload is hand-carried from amd64, and the arm64 build is
+# planned but hardware-gated -- see docs/arm64-recon.md.
+declared=$(awk '
+    /^platforms:/ { found=1; next }
+    found && /^[^ \t#]/ { exit }
+    found && /^[ \t]+[A-Za-z0-9_]+:/ { sub(/^[ \t]+/, ""); sub(/:.*/, ""); print }
+' snapcraft.yaml)
+if [ -z "$declared" ]; then
+    echo "E: could not read the declared platforms from snapcraft.yaml" >&2
+    exit 1
+fi
+host_triplet="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+# dpkg-architecture honours pre-set DEB_HOST_* environment variables
+# over its own tables, so the declared triplets must be computed with
+# the environment sanitized: an exported DEB_HOST_MULTIARCH is an
+# explicit override of the host side only, never of the declaration.
+triplet_of() {
+    env -u DEB_HOST_MULTIARCH dpkg-architecture -a "$1" -qDEB_HOST_MULTIARCH
+}
+declared_triplets=
+for a in $declared; do
+    declared_triplets="$declared_triplets $(triplet_of "$a")"
+done
+case " $declared_triplets " in
+    *" $host_triplet "*) ;;
+    *)
+        echo "E: unsupported build architecture: host triplet" \
+            "$host_triplet is not among the declared platforms:$declared" >&2
+        echo "E: (the host triplet is dpkg-architecture's" \
+            "DEB_HOST_MULTIARCH; a stray export of it overrides the" \
+            "host default)" >&2
+        echo "E: the desktop variant is amd64-only; arm64 is planned but" \
+            "hardware-gated -- see docs/arm64-recon.md for the arm64 story" >&2
+        exit 1
+        ;;
+esac
+
 command -v lxc >/dev/null || {
     echo "E: lxc is required for the snap renaming step" >&2
     exit 1
