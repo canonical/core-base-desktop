@@ -8,6 +8,18 @@ until an arm64 build environment/hardware is available — TCG emulation
 was evaluated and rejected for builds and boot verification alike.
 Everything below is the roadmap reference for that work.
 
+Status update (2026-11-08, later): §2's option (b) landed — the
+build-snap-variant.yml workflow now builds the variant natively on
+GitHub's ubuntu-24.04-arm hosted runner, and this branch declares
+`platforms: amd64: arm64:`. §1.4's payload ELF re-sourcing is done the
+maintainer-endorsed way: the PAM/NSS modules are staged from archive
+debs at build time (the desktop-payload-debs part — the debs resolve
+natively per build architecture) and xdg-fuse-broker is built from the
+in-tree fuse-broker/ source (the fuse-broker part); no vendored ELFs
+remain. Still open from this roadmap: the arm64 IMAGE (build.sh model
+defaults, gadget-arm64.yaml seed size/defaults port, §3's content-snap
+arm64 platform entries) and the §5 boot verification.
+
 Scope: parameterize arch-hardcoded content, build an arm64 thin-variant base + GNOME
 image, boot-verify under qemu-system-aarch64. READ-ONLY recon, 2026-11-08.
 Repos inspected: `~/git/worktrees/core-base-variant` (thin core26-desktop variant,

@@ -73,8 +73,10 @@ case " $declared_triplets " in
         echo "E: (the host triplet is dpkg-architecture's" \
             "DEB_HOST_MULTIARCH; a stray export of it overrides the" \
             "host default)" >&2
-        echo "E: the desktop variant is amd64-only; arm64 is planned but" \
-            "hardware-gated -- see docs/arm64-recon.md for the arm64 story" >&2
+        echo "E: the variant builds amd64 and arm64, natively on the" \
+            "matching architecture (the payload's ELFs are staged from" \
+            "archive debs / built from source per build arch); see" \
+            "docs/arm64-recon.md for the arm64 story" >&2
         exit 1
         ;;
 esac

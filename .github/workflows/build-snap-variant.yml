@@ -8,11 +8,21 @@ name: build-snap-variant
 # rename lands (the old fat desktop/26 CI in build-snap.yml is still
 # live until then and publishes the FAT base to the desktop-26-latest
 # release). The variant snap is therefore published to its own
-# desktop-26-thin-latest release under the same asset name the fat CI
-# uses (core26-desktop.snap): the two rolling releases can never clobber
-# each other, and the image CI picks the thin one by tag. After the
-# rename, change the trigger below to desktop/26; the fat build-snap.yml
-# does not exist on this branch's history, so only this workflow runs.
+# desktop-26-thin-latest release: the two rolling releases can never
+# clobber each other, and the image CI picks the thin one by tag. After
+# the rename, change the trigger below to desktop/26; the fat
+# build-snap.yml does not exist on this branch's history, so only this
+# workflow runs.
+#
+# Architecture matrix: the variant builds natively on each architecture
+# (there is no cross-build — the chroot hooks and chisel slice
+# resolution execute the build architecture's binaries, see
+# docs/arm64-recon.md). amd64 keeps the same asset name the fat CI
+# uses; arm64 gets a distinct -arm64 asset on the same release, the
+# validated canonical/{fprintd,boltd,geoclue}-snap pattern. The
+# payload's arch-specific ELFs are staged from archive debs / built
+# from in-tree source per architecture (desktop-payload-debs and
+# fuse-broker parts), so no per-arch payload prep is needed here.
 #
 # Variant switches need a snapcraft clean: cached part state re-applies
 # the other variant's project_vars snapshot and clobbers the freshly set
@@ -32,7 +42,17 @@ permissions:
 
 jobs:
   snap:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runs-on: ubuntu-latest
+            asset: core26-desktop.snap
+          - arch: arm64
+            runs-on: ubuntu-24.04-arm
+            asset: core26-desktop-arm64.snap
+    runs-on: ${{ matrix.runs-on }}
     steps:
       - uses: actions/checkout@v4
       - name: Install build dependencies
@@ -57,7 +77,7 @@ jobs:
           sudo -u "$USER" -E snapcraft clean || echo "nothing to clean (fresh runner)"
           sudo -u "$USER" -E ./tools/build-variant.sh desktop
       - name: Normalize snap filename
-        run: cp "$(ls -t core26-desktop_*+desktop_*.snap | head -1)" core26-desktop.snap
+        run: cp "$(ls -t core26-desktop_*+desktop_*.snap | head -1)" ${{ matrix.asset }}
       - name: Publish to desktop-26-thin-latest release
         if: github.event_name != 'pull_request'
         env:
@@ -67,10 +87,10 @@ jobs:
             || gh release create desktop-26-thin-latest -R "$GITHUB_REPOSITORY" \
                  --title "desktop/26-thin latest desktop-variant snap" \
                  --notes "Rolling latest desktop-variant core26-desktop build from desktop/26-thin; assets are replaced on every green build. Consumed by ubuntu-core-desktop's thin image CI until the desktop/26 rename lands."
-          gh release upload desktop-26-thin-latest core26-desktop.snap -R "$GITHUB_REPOSITORY" --clobber
+          gh release upload desktop-26-thin-latest ${{ matrix.asset }} -R "$GITHUB_REPOSITORY" --clobber
       - uses: actions/upload-artifact@v4
         with:
-          name: snap-desktop-variant
-          path: core26-desktop.snap
+          name: snap-desktop-variant-${{ matrix.arch }}
+          path: ${{ matrix.asset }}
           compression-level: 0
           retention-days: 14

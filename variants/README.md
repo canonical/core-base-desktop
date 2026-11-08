@@ -69,14 +69,27 @@ branches on `$SNAP_BUILD_VARIANT`.
 
 # Architecture support
 
-The desktop variant is **amd64-only** for now. This is declared twice,
-so a foreign-arch build fails loudly instead of silently producing an
-amd64-assuming base:
+The desktop variant builds **amd64 and arm64**, natively on the
+matching architecture (GitHub hosted runners; there is no cross-build —
+chroot hooks and chisel slice resolution execute the build
+architecture's binaries, see docs/arm64-recon.md). This is declared
+twice, so a foreign-arch build fails loudly instead of silently
+producing an amd64-assuming base:
 
-* `snapcraft.yaml` declares `platforms: amd64:` — snapcraft refuses to
-  compute a build plan on any other architecture.
+* `snapcraft.yaml` declares `platforms: amd64:` and `arm64:` —
+  snapcraft refuses to compute a build plan on any other architecture.
 * `tools/build-variant.sh` checks the host multiarch triplet against
   the declared platforms and exits with an error otherwise.
+
+The payload's arch-specific ELFs are NOT vendored: the
+`desktop-payload-debs` part stages the PAM/NSS modules from archive
+debs at build time (resolved natively per architecture, with recorded
+provenance and wrong-arch guards), and the `fuse-broker` part builds
+`xdg-fuse-broker` from the in-tree `fuse-broker/` source on the build
+architecture. Both parts stage into `desktop-payload/`, which
+`apply-variant-payload.sh` copies into the rootfs on desktop builds
+only (step a3); the 995 hook test verifies the ELFs are present on
+desktop builds and absent from regular ones.
 
 The payload expresses multiarch paths with the `@MULTIARCH@`
 placeholder, substituted with the build environment's Debian

@@ -77,7 +77,36 @@ if [ -e "$sysroot/etc/pam.d/gdm-password" ]; then
     cmp "$sysroot/usr/lib/tmpfiles.d/core-writable.conf" \
         "$tmp/rootfs/usr/lib/tmpfiles.d/core-writable.conf"
 
+    # the deb-sourced payload ELFs (staged by the desktop-payload-debs
+    # and fuse-broker parts, copied by apply-variant-payload.sh) must
+    # all be present in the primed rootfs, as real ELF files, with the
+    # build-time provenance record; the staging parts guard the ELF
+    # machine type, so existence + magic is what is checked here
+    triplet="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+    elf_ok() {
+        [ "$(head -c 4 "$1" | od -An -tx1 | tr -d ' \n')" = "7f454c46" ]
+    }
+    for f in \
+        usr/lib/security/pam_gdm.so \
+        "usr/lib/$triplet/security/pam_fprintd.so" \
+        "usr/lib/$triplet/security/pam_gnome_keyring.so" \
+        "usr/lib/$triplet/security/pam_systemd_loadkey.so" \
+        "usr/lib/$triplet/libnss_systemd.so.2" \
+        usr/bin/xdg-fuse-broker
+    do
+        if ! [ -f "$sysroot/$f" ] || ! elf_ok "$sysroot/$f"; then
+            echo "E: desktop payload ELF missing or not an ELF: $f" >&2
+            exit 1
+        fi
+    done
+    grep -q "^Build arch: " \
+        "$sysroot/usr/share/doc/desktop-payload/provenance" || {
+        echo "E: desktop payload provenance record missing" >&2
+        exit 1
+    }
+
     echo "desktop variant payload is applied exactly once"
+    echo "desktop variant deb-sourced payload ELFs are present"
 else
     # regular build: the base fstab and core-writable.conf are primed
     # unchanged, with no desktop fragments appended (a desktop payload
@@ -132,6 +161,24 @@ PYEOF
     done < <(cd "$src/variants/desktop/static" \
              && find . \( -type f -o -type l \) -print0)
     [ -z "$leak" ]
+
+    # the deb-sourced payload ELFs are staged outside the static
+    # payload (desktop-payload-debs and fuse-broker parts), so the walk
+    # above does not cover them: assert their absence explicitly
+    triplet="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+    for f in \
+        usr/lib/security/pam_gdm.so \
+        "usr/lib/$triplet/security/pam_fprintd.so" \
+        "usr/lib/$triplet/security/pam_gnome_keyring.so" \
+        "usr/lib/$triplet/security/pam_systemd_loadkey.so" \
+        "usr/lib/$triplet/libnss_systemd.so.2" \
+        usr/bin/xdg-fuse-broker
+    do
+        if [ -e "$sysroot/$f" ] || [ -L "$sysroot/$f" ]; then
+            echo "E: desktop payload ELF leaked into a regular build: $f" >&2
+            exit 1
+        fi
+    done
 
     echo "regular build carries no desktop payload"
 fi

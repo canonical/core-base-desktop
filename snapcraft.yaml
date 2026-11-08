@@ -7,15 +7,18 @@ confinement: strict
 type: base
 build-base: core26
 grade: stable
-# The desktop variant is amd64-only for now: the payload's ELF set and
-# the GNOME content closure are hand-carried from amd64. arm64 is
-# planned but hardware-gated (it needs a native arm64 build
-# environment); see docs/arm64-recon.md. Declaring the platform makes a
-# foreign-arch build fail loudly at build-plan computation instead of
-# producing an amd64-assuming base; tools/build-variant.sh enforces the
-# same declaration, earlier and with the arm64 story attached.
+# The desktop variant builds amd64 and arm64 (native builds on the
+# matching hosted runners; the payload's arch-specific ELFs are staged
+# from archive debs / built from in-tree source per architecture — see
+# the desktop-payload-debs and fuse-broker parts). Declaring the
+# platforms makes a foreign-arch build fail loudly at build-plan
+# computation instead of producing an amd64-assuming base;
+# tools/build-variant.sh enforces the same declaration, earlier and
+# with the build story attached. The arm64 content-snap closure
+# expectations are documented in docs/arm64-recon.md.
 platforms:
   amd64:
+  arm64:
 assumes:
   - snapd2.55.5
   # This is uncommented in our github builds for riscv64
@@ -376,11 +379,185 @@ parts:
     stage:
       - -README.md
 
+  fuse-broker:
+    # xdg-fuse-broker, built from the in-tree fuse-broker/ source at
+    # build time on the build architecture (a native go build per
+    # runner; no vendored ELF — see fuse-broker/README.md for
+    # provenance, and session-brokers-style design notes at the top of
+    # broker.go for why this broker exists). Desktop builds only: the
+    # binary is the payload's privileged FUSE mount broker.
+    after:
+      - build-env
+    plugin: nil
+    source: fuse-broker/
+    build-packages:
+      - golang
+    override-build: |
+      craftctl default
+      . "$CRAFT_STAGE"/build-env
+      SNAP_BUILD_VARIANT=${SNAP_BUILD_VARIANT:-}
+      if [ "$SNAP_BUILD_VARIANT" != desktop ]; then
+        echo "I: not the desktop variant, not building xdg-fuse-broker"
+        exit 0
+      fi
+      cd "${CRAFT_PART_SRC}"
+      CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o xdg-fuse-broker .
+      mkdir -p "${CRAFT_PART_INSTALL}/desktop-payload/usr/bin"
+      install -m 755 xdg-fuse-broker \
+        "${CRAFT_PART_INSTALL}/desktop-payload/usr/bin/xdg-fuse-broker"
+    override-prime: |
+      # No files from this step in prime; the payload is copied into the
+      # rootfs by apply-variant-payload.sh (Makefile install target).
+
+  desktop-payload-debs:
+    # The desktop variant's arch-specific payload PAM/NSS modules,
+    # staged from archive debs at build time instead of vendored
+    # binaries (the maintainer-endorsed accountsservice-snap pattern:
+    # real package consumption with recorded provenance). Every deb
+    # resolves natively per build architecture, so the same part serves
+    # the amd64 and the arm64 build, and the ELFs are staged at the
+    # build architecture's real multiarch paths.
+    #
+    # Deliberately NOT stage-packages (the accountsservice-snap shape):
+    # the variant must stay payload-identical to stock core26 for
+    # non-desktop builds, and the rootfs's dependency closure comes
+    # from the chisel slices — only the modules themselves are
+    # consumed. The exact debs are downloaded unconditionally per
+    # desktop build (no dependency closure) and version-tolerant,
+    # tracking the archive like the chisel cut and the fat base's
+    # ucd-ppa-overlays part ("unpinned on purpose"): nothing here is
+    # patched, and the modules' interfaces (PAM module API, glibc NSS
+    # ABI, libsystemd SONAME) are stable, so an archive update needs no
+    # re-pin — the md5s of what was actually staged are recorded in the
+    # primed provenance file, and the 995 hook test verifies the ELFs
+    # landed. Guards below fail the build loudly on a wrong-arch or
+    # wrong-source archive state instead of packing something broken.
+    after:
+      - build-env
+    plugin: nil
+    source: .
+    override-build: |
+      craftctl default
+      . "$CRAFT_STAGE"/build-env
+      SNAP_BUILD_VARIANT=${SNAP_BUILD_VARIANT:-}
+      if [ "$SNAP_BUILD_VARIANT" != desktop ]; then
+        echo "I: not the desktop variant, no payload ELFs to stage"
+        exit 0
+      fi
+      set -e
+      arch="$(dpkg --print-architecture)"
+      triplet="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+      # e_machine bytes of a native ELF: 0x3e x86-64, 0xb7 aarch64
+      case "$arch" in
+          amd64) machine="3e00" ;;
+          arm64) machine="b700" ;;
+          *)
+              echo "E: the desktop payload has no ELF machine mapping for" \
+                  "$arch; extend this part (and snapcraft.yaml's platforms)" \
+                  "together" >&2
+              exit 1
+              ;;
+      esac
+
+      workdir="${CRAFT_PART_BUILD}/debs"
+      mkdir -p "$workdir"
+      cd "$workdir"
+      apt-get update
+      # gdm3 ships pam_gdm.so; fprintd's PAM module is libpam-fprintd;
+      # gnome-keyring's is libpam-gnome-keyring; the systemd pair comes
+      # from one source package and must move together (guard below).
+      apt-get download gdm3 libpam-fprintd libpam-gnome-keyring \
+          libpam-systemd libnss-systemd
+
+      # the systemd pair comes from one source package: a mismatched
+      # pair would mean a partially-synced archive, refuse it
+      ver_pam="$(dpkg-deb -f libpam-systemd_*.deb Version)"
+      ver_nss="$(dpkg-deb -f libnss-systemd_*.deb Version)"
+      if [ "$ver_pam" != "$ver_nss" ]; then
+          echo "E: libpam-systemd ($ver_pam) and libnss-systemd" \
+              "($ver_nss) are from the same source package but differ;" \
+              "refusing to stage a partially-synced archive state" >&2
+          exit 1
+      fi
+
+      payload="${CRAFT_PART_INSTALL}/desktop-payload"
+      mkdir -p "$payload"
+      provenance="$payload/usr/share/doc/desktop-payload/provenance"
+      mkdir -p "$(dirname "$provenance")"
+      {
+          echo "Arch-specific desktop-variant payload ELFs, staged from"
+          echo "archive debs at build time (snapcraft.yaml:" \
+              "desktop-payload-debs)."
+          echo "Build arch: $arch (triplet $triplet)"
+          echo
+      } > "$provenance"
+
+      # <deb> <path-in-deb> <payload-destination> — extract, guard, record
+      extract() {
+          deb="$1"
+          rel="$2"
+          dst="$3"
+          if [ "$(dpkg-deb -f "$deb" Architecture)" != "$arch" ]; then
+              echo "E: $deb is not built for $arch" >&2
+              exit 1
+          fi
+          rm -rf extract && mkdir extract
+          dpkg-deb -x "$deb" extract
+          src="extract/$rel"
+          if ! [ -f "$src" ]; then
+              echo "E: $deb does not ship $rel (package layout changed?)" >&2
+              exit 1
+          fi
+          # ELF magic + native e_machine: a wrong-arch module here
+          # would segfault the PAM stack at first login
+          if [ "$(head -c 4 "$src" | od -An -tx1 | tr -d ' \n')" \
+                  != "7f454c46" ] \
+                  || [ "$(od -An -tx1 -j18 -N2 "$src" | tr -d ' \n')" \
+                  != "$machine" ]; then
+              echo "E: $src is not a native $arch ELF" >&2
+              exit 1
+          fi
+          mkdir -p "$(dirname "$payload/$dst")"
+          # the deb's own file mode (0644 for these shared objects)
+          cp -a "$src" "$payload/$dst"
+          echo "$(md5sum "$payload/$dst" | cut -d' ' -f1)  $dst" \
+              "$(dpkg-deb -f "$deb" Package) $(dpkg-deb -f "$deb" Version)" \
+              >> "$provenance"
+          echo "I: staged $dst from $(basename "$deb")"
+      }
+
+      # pam_gdm.so: the deb ships it at the multiarch security path;
+      # the payload keeps the arch-neutral /usr/lib/security/ location
+      # the fat base used (libpam's module lookup falls back to it —
+      # proven on the fat images; the gdm-* PAM stacks reference the
+      # bare module name). Everything else keeps the deb's layout.
+      extract gdm3_*.deb \
+          "usr/lib/$triplet/security/pam_gdm.so" \
+          "usr/lib/security/pam_gdm.so"
+      extract libpam-fprintd_*.deb \
+          "usr/lib/$triplet/security/pam_fprintd.so" \
+          "usr/lib/$triplet/security/pam_fprintd.so"
+      extract libpam-gnome-keyring_*.deb \
+          "usr/lib/$triplet/security/pam_gnome_keyring.so" \
+          "usr/lib/$triplet/security/pam_gnome_keyring.so"
+      extract libpam-systemd_*.deb \
+          "usr/lib/$triplet/security/pam_systemd_loadkey.so" \
+          "usr/lib/$triplet/security/pam_systemd_loadkey.so"
+      extract libnss-systemd_*.deb \
+          "usr/lib/$triplet/libnss_systemd.so.2" \
+          "usr/lib/$triplet/libnss_systemd.so.2"
+      cat "$provenance"
+    override-prime: |
+      # No files from this step in prime; the payload is copied into the
+      # rootfs by apply-variant-payload.sh (Makefile install target).
+
   hooks:
     after:
       - chisel-libs
       - snapd-files
       - splash-theme
+      - fuse-broker
+      - desktop-payload-debs
       - build-env
     plugin: make
     source: .

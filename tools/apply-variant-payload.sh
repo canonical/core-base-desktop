@@ -99,6 +99,18 @@ if [ -d "$payload/static" ]; then
                     ;;
             esac
         done
+
+    # (a3) arch-specific payload ELFs, staged from archive debs /
+    # built from in-tree source by the desktop-payload-debs and
+    # fuse-broker parts (see snapcraft.yaml — there are no vendored
+    # ELFs in the payload tree). The staged tree only exists on
+    # desktop builds (both parts exit early otherwise) and already
+    # carries the build architecture's real multiarch paths, so no
+    # substitution is needed here.
+    if [ "$variant" = desktop ] && [ -d "${CRAFT_STAGE:-}/desktop-payload" ]; then
+        echo "I: copying the deb-sourced payload ELFs into the rootfs"
+        cp -a "$CRAFT_STAGE"/desktop-payload/. "$rootfs/"
+    fi
 fi
 
 # Append a fragment to a file, keeping the file's trailing newline
