@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.gnome.Shell.Extensions
+Exec=/snap/bin/ubuntu-desktop-session.gnome-shell-extensions
+AssumedAppArmorLabel=snap.ubuntu-desktop-session.gnome-shell-extensions

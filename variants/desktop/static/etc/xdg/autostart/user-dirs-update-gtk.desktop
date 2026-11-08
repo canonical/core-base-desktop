@@ -1,0 +1,12 @@
+[Desktop Entry]
+Exec=/snap/bin/ubuntu-desktop-session.xdg-user-dirs-gtk-update
+Name=User folders update
+Comment=Update common folders names to match current locale
+Terminal=false
+NotShowIn=KDE;LXQt;
+NoDisplay=true
+Type=Application
+StartupNotify=false
+X-KDE-autostart-after=panel
+X-systemd-skip=true
+X-Ubuntu-Gettext-Domain=xdg-user-dirs-gtk

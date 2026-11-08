@@ -56,6 +56,25 @@ dirs=(
     /var/tmp
 )
 
+# The desktop variant adds writable paths (see variants/desktop/):
+# their factory templates are copies of the rootfs's own directories,
+# exactly like the base list above. The mount points themselves are
+# shipped through variants/desktop/static/.
+case "${SNAP_BUILD_VARIANT:-}" in
+    desktop)
+        dirs+=(
+            /etc/colord
+            /etc/firefox
+            /var/lib/AccountsService
+            /var/lib/gdm3
+            /usr/share/wayland-sessions
+            /usr/share/polkit-1
+            /var/lib/colord
+            /var/lib/fprint
+        )
+        ;;
+esac
+
 for dir in "${dirs[@]}"; do
     parent="$(dirname "${dir}")"
     mkdir -p "${ROOTDIR}/usr/share/factory/writable/system-data${parent}"

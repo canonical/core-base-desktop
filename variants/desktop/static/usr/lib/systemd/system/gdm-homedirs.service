@@ -1,0 +1,11 @@
+[Unit]
+Description=Configure GDM home directories in Snapd
+Requires=snapd.seeded.service
+After=snapd.seeded.service
+Before=gdm.service
+
+[Service]
+Type=oneshot
+ExecStartPre=/usr/bin/mkdir -p /run/gdm3/home
+ExecStart=/usr/bin/snap set system homedirs=/run/gdm3/home
+RemainAfterExit=yes

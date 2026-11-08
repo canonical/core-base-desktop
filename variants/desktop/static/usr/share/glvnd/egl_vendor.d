@@ -1,0 +1,1 @@
+/snap/gnome-desktop-runtime/current/usr/share/glvnd/egl_vendor.d

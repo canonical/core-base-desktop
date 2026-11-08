@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.freedesktop.FileManager1
+SystemdService=snap.ubuntu-desktop-session.nautilus-service.service
+Exec=/usr/bin/snap run ubuntu-desktop-session.nautilus-service
+AssumedAppArmorLabel=snap.ubuntu-desktop-session.nautilus-service

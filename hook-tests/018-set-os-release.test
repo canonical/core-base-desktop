@@ -1,3 +1,12 @@
 #!/bin/sh -e
 
 grep -qE '^ID=ubuntu-core' usr/lib/os-release
+
+# The desktop variant is identified by its baked payload (hook-tests do
+# not run with SNAP_BUILD_VARIANT exported): a desktop prime must carry
+# VARIANT_ID=desktop, a regular prime must carry no VARIANT_ID at all.
+if [ -e etc/pam.d/gdm-password ]; then
+    grep -qE '^VARIANT_ID=desktop$' usr/lib/os-release
+else
+    ! grep -qE '^VARIANT_ID=' usr/lib/os-release
+fi

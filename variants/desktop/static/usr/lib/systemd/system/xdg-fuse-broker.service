@@ -1,0 +1,29 @@
+[Unit]
+Description=Privileged FUSE mount broker for the confined xdg-document-portal
+Requires=xdg-fuse-broker.socket
+After=xdg-fuse-broker.socket
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/xdg-fuse-broker
+NonBlocking=true
+# The broker only ever needs to perform mount(2)/umount(2) and to create the
+# per-user mountpoint directory; it must not retain any other privilege.
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_OVERRIDE
+AmbientCapabilities=CAP_SYS_ADMIN CAP_DAC_OVERRIDE
+# NOTE: the broker must stay in the host mount namespace so that the FUSE
+# mounts it creates propagate to the confined xdg-document-portal snap. Any
+# option that implies a private mount namespace (ProtectSystem=, ProtectHome=,
+# PrivateTmp=, PrivateMounts=) would silently isolate the mount and break the
+# whole mechanism, so none of them may be used here.
+NoNewPrivileges=true
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+# mount(2)/umount(2) live in @mount, which is not part of @system-service.
+SystemCallFilter=@system-service @mount
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

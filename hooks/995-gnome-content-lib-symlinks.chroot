@@ -1,0 +1,72 @@
+#!/bin/sh
+
+set -eu
+
+# The thin desktop rootfs does not carry the GNOME desktop lib cluster;
+# it lives in the gnome-desktop-runtime content snap. Processes exec'd
+# through gnome-content-launch get it via LD_LIBRARY_PATH, but the
+# content snap's gdm-wayland-session spawns the session command with a
+# scrubbed environment (no LD_LIBRARY_PATH, no PATH), so the dynamic
+# loader must resolve the missing libs through its default-dir search
+# instead.
+#
+# The desktop payload ships the same symlinks under
+# variants/desktop/static/usr/lib/x86_64-linux-gnu/, but they have been
+# observed to be deleted by cleanup hooks running after the payload
+# while sibling files from the same copy survive. Recreate them
+# idempotently here, after all other hooks, so the resolution is
+# guaranteed in the final rootfs. Only names the rootfs does not
+# already carry are linked, so nothing is shadowed.
+#
+# Desktop variant only: a regular/cloud-init build must not acquire
+# GNOME runtime symlinks pointing at a content snap it never mounts.
+
+if [ "${SNAP_BUILD_VARIANT:-}" = desktop ]; then
+
+libdir=/usr/lib/x86_64-linux-gnu
+content=/snap/gnome-desktop-runtime/current/usr/lib/x86_64-linux-gnu
+
+# The link TARGETS live in the content snap and do not exist in this
+# build chroot (/snap is only mounted at runtime); only create the
+# links, never resolve them here.
+
+for lib in \
+    libgnome-desktop-4.so.2 \
+    libgdk_pixbuf-2.0.so.0 \
+    libxkbregistry.so.0 \
+    libglycin-2.so.0 \
+    libxml2.so.16 \
+    liblcms2.so.2 \
+    libfontconfig.so.1
+do
+    if [ ! -e "$libdir/$lib" ] && [ ! -L "$libdir/$lib" ]; then
+        echo "I: linking $lib -> $content/$lib"
+        ln -s "$content/$lib" "$libdir/$lib"
+    fi
+done
+
+# mutter's GBM backend and mesa's DRI drivers are dlopen'd from
+# hardcoded subdirectory paths (/usr/lib/x86_64-linux-gnu/gbm and
+# .../dri), which LD_LIBRARY_PATH cannot influence; link the whole
+# directories through to the content snap. The same goes for the GLVND
+# EGL vendor configuration (without it libEGL has no vendor and mutter
+# aborts with "GPU not supported by EGL"), mutter's mandatory XKB
+# keymap tree and mesa's drirc defaults.
+for dir in gbm dri; do
+    if [ ! -e "$libdir/$dir" ] && [ ! -L "$libdir/$dir" ]; then
+        echo "I: linking $dir -> $content/$dir"
+        ln -s "$content/$dir" "$libdir/$dir"
+    fi
+done
+
+share=/usr/share
+cshare=/snap/gnome-desktop-runtime/current/usr/share
+for dir in glvnd/egl_vendor.d X11/xkb drirc.d; do
+    mkdir -p "$share/$(dirname "$dir")"
+    if [ ! -e "$share/$dir" ] && [ ! -L "$share/$dir" ]; then
+        echo "I: linking share/$dir -> $cshare/$dir"
+        ln -s "$cshare/$dir" "$share/$dir"
+    fi
+done
+
+fi

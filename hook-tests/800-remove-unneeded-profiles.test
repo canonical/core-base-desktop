@@ -13,6 +13,17 @@ allowed_profs[systemd-detect-virt]=""
 allowed_profs[unix-chkpwd]=""
 allowed_profs[who]=""
 
+# The desktop variant bakes two extra profiles that would be deleted by
+# the 800 hook otherwise: gdm has no matching host binary (it is
+# attached via systemd's AppArmorProfile= directive, see the 800 hook)
+# and ssh-agent ships for the desktop PAM stacks. The variant is
+# identified by its baked payload (hook-tests do not run with
+# SNAP_BUILD_VARIANT exported).
+if [ -e etc/pam.d/gdm-password ]; then
+    allowed_profs[gdm]=""
+    allowed_profs[ssh-agent]=""
+fi
+
 num_prof=0
 
 for profile in "$APPARMOR_PROF_D"/*; do

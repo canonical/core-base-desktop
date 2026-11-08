@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.gnome.Identity
+Exec=/snap/bin/ubuntu-desktop-session.goa-identity-service
+AssumedAppArmorLabel=snap.ubuntu-desktop-session.goa-identity-service

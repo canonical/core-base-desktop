@@ -1,0 +1,16 @@
+[Unit]
+Description=GCR ssh-agent wrapper
+# If gcr is installed, take priority in setting SSH_AUTH_SOCK over ssh-agent
+After=ssh-agent.socket
+# Conversly, allow gpg-agent-ssh to overwrite if explicitely enabled
+Before=gpg-agent-ssh.socket
+
+[Socket]
+Priority=6
+Backlog=5
+ListenStream=%t/gcr/ssh
+ExecStartPost=-/usr/bin/systemctl --user set-environment SSH_AUTH_SOCK=%t/gcr/ssh
+DirectoryMode=0700
+
+[Install]
+WantedBy=sockets.target

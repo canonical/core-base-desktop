@@ -70,7 +70,9 @@ done
 # (c) tmpfiles.d fragments appended to core-writable.conf, in glob
 # order. Every C line added here needs a matching fstab entry (knob b)
 # and template data under /usr/share/factory (knob a); the
-# 993-factory-files build-time test enforces this.
+# 993-factory-files build-time test enforces this. d lines may also
+# target paths nested under an existing mount (e.g. skeleton entries
+# inside /var/lib/snapd) without their own fstab entry.
 for f in "$payload"/writable.conf.d/*.conf; do
     [ -e "$f" ] || continue
     echo "I: appending $(basename "$f") to core-writable.conf"

@@ -11,3 +11,11 @@ VERSION_ID="26"
 HOME_URL="https://snapcraft.io/"
 BUG_REPORT_URL="https://bugs.launchpad.net/snapd/"
 EOF
+
+# The desktop variant marks itself via VARIANT_ID; everything else in
+# the file stays stock. (Baked here rather than shipped as a payload
+# file: this hook rewrites /usr/lib/os-release after the variant
+# payload is applied.)
+if [ "${SNAP_BUILD_VARIANT:-}" = desktop ]; then
+    echo 'VARIANT_ID=desktop' >>/usr/lib/os-release
+fi

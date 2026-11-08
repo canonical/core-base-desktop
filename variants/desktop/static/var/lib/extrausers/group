@@ -1,0 +1,6 @@
+adm:x:4:
+cdrom:x:24:
+sudo:x:27:
+dip:x:30:
+plugdev:x:46:
+users:x:100:

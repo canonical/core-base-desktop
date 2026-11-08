@@ -35,6 +35,14 @@ rmdir /var/log/private
 # clean leftovers from the build
 rm /var/log/*
 
+# The desktop variant ships the persistent-journal directory (GDM and
+# the desktop session expect it; the desktop base re-creates it after
+# this cleanup).
+if [ "${SNAP_BUILD_VARIANT:-}" = desktop ]; then
+    mkdir -p /var/log/journal
+    chmod 0755 /var/log/journal
+fi
+
 # no "local" on core
 # shellcheck disable=SC2114
 rm -rf -- /var/local /usr/local

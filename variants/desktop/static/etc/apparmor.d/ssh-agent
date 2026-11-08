@@ -1,0 +1,10 @@
+#include <tunables/global>
+
+profile ssh-agent /usr/bin/ssh-agent {
+  #include <abstractions/base>
+
+  # systemd owns the 0600 listener and passes accepted streams to the agent.
+  owner /run/user/[0-9]*/openssh_agent rw,
+  unix (accept, receive, send) type=stream,
+  signal (receive) set=(term) peer=unconfined,
+}

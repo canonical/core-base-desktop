@@ -10,23 +10,38 @@ for name in group gshadow passwd shadow subuid subgid; do
     touch /var/lib/extrausers/$name
 done
 
-cat > /var/lib/extrausers/group <<EOF
+# A build variant may bake admin-group stubs into /var/lib/extrausers
+# (the desktop variant does); only write the defaults into still-empty
+# files so the baked content survives this hook.
+if [ ! -s /var/lib/extrausers/group ]; then
+    cat > /var/lib/extrausers/group <<EOF
 users:x:100:
 EOF
+fi
 
-cat > /var/lib/extrausers/gshadow <<EOF
+if [ ! -s /var/lib/extrausers/gshadow ]; then
+    cat > /var/lib/extrausers/gshadow <<EOF
 users:*::
 EOF
+fi
 
 for name in gshadow shadow; do
     chmod 640 /var/lib/extrausers/$name
     chown root:shadow /var/lib/extrausers/$name
 done
 
-# Enable libnss-extrusers
-sed -i 's/^passwd:.*files/\0 extrausers/' /etc/nsswitch.conf
-sed -i 's/^group:.*files/\0 extrausers/' /etc/nsswitch.conf
-sed -i 's/^shadow:.*files/\0 extrausers/' /etc/nsswitch.conf
+# Enable libnss-extrusers. A build variant may bake its own
+# nsswitch.conf that already carries the extrausers (and systemd)
+# wiring - appending again would duplicate the entries there.
+if ! grep -q '^passwd:.*extrausers' /etc/nsswitch.conf; then
+    sed -i 's/^passwd:.*files/\0 extrausers/' /etc/nsswitch.conf
+fi
+if ! grep -q '^group:.*extrausers' /etc/nsswitch.conf; then
+    sed -i 's/^group:.*files/\0 extrausers/' /etc/nsswitch.conf
+fi
+if ! grep -q '^shadow:.*extrausers' /etc/nsswitch.conf; then
+    sed -i 's/^shadow:.*files/\0 extrausers/' /etc/nsswitch.conf
+fi
 
 # verify pam_extrausers.so is available
 grep pam_extrausers.so /etc/pam.d/common-password

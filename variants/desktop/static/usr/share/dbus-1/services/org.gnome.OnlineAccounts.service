@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.gnome.OnlineAccounts
+Exec=/snap/bin/ubuntu-desktop-session.goa-daemon
+AssumedAppArmorLabel=snap.ubuntu-desktop-session.goa-daemon

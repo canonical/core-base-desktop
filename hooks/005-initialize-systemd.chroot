@@ -15,8 +15,17 @@ cat > /etc/systemd/system-preset/99-default.preset <<EOF
 disable *
 EOF
 
-# Reset all unit files
-systemctl preset-all
+# Reset all unit files. The desktop payload ships /etc/systemd masks
+# (getty@tty1 for GDM, console-conf) that are already in place when
+# this hook runs, and preset-all treats any masked unit as an error
+# and exits nonzero. The desktop base avoids this by masking only
+# after preset, so tolerate the reported masks here — the preset work
+# itself still completes.
+if [ "$SNAP_BUILD_VARIANT" = desktop ]; then
+    systemctl preset-all || echo "W: preset-all reported masked payload units, ignoring"
+else
+    systemctl preset-all
+fi
 
 # Remove the preset file again
 rm /etc/systemd/system-preset/99-default.preset
