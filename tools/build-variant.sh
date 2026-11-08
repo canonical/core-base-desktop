@@ -91,15 +91,31 @@ src_version=$(meta_field "$src" version)
 echo "I: packed $src (version $src_version)"
 
 # locate the snapcraft LXD build instance for this project: the one
-# whose prime directory holds the version we just packed. The instance
-# must be started for the exec calls below.
+# whose prime directory holds the version we just packed. Every
+# candidate is inspected for the match; stopped ones are started
+# temporarily for the exec calls below (an already-running candidate
+# is left alone), and every instance this script started is stopped
+# again on every exit path, success or failure.
 instance=
-was_running=
+started=
+restore_instances() {
+    local i
+    for i in $started; do
+        lxc stop "$i" --project snapcraft >/dev/null 2>&1 || true
+    done
+    rm -f build-env
+}
+trap restore_instances EXIT
+
 for candidate in $(lxc list --project snapcraft --format csv -c n \
         | grep "^snapcraft-${project}-${arch}-" || true); do
-    if [ -z "$was_running" ]; then
-        was_running=$(lxc list --project snapcraft --format csv -c s "$candidate")
-        lxc start "$candidate" --project snapcraft >/dev/null
+    if [ "$(lxc list --project snapcraft --format csv -c s "$candidate")" \
+            != RUNNING ]; then
+        lxc start "$candidate" --project snapcraft >/dev/null || {
+            echo "E: failed to start candidate build instance $candidate" >&2
+            exit 1
+        }
+        started="$started $candidate"
     fi
     prime_version=$(lxc exec "$candidate" --project snapcraft -- \
         cat /root/prime/meta/snap.yaml 2>/dev/null |
@@ -164,9 +180,6 @@ REMOTE
 
 lxc file pull "${instance}/tmp/renamed.snap" . --project snapcraft
 lxc exec "$instance" --project snapcraft -- rm -f /tmp/renamed.snap
-if [ "$was_running" != RUNNING ]; then
-    lxc stop "$instance" --project snapcraft >/dev/null
-fi
 
 # the packed metadata is the source of truth for the final file name
 out="${new_name}_$(meta_field renamed.snap version)_${arch}.snap"

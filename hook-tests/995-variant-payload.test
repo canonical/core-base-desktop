@@ -87,6 +87,52 @@ else
     cmp "$src/static/usr/lib/tmpfiles.d/core-writable.conf" \
         "$sysroot/usr/lib/tmpfiles.d/core-writable.conf"
 
+    # no desktop payload may leak into a regular build at all: walk
+    # every regular file and symlink the desktop payload ships and
+    # require each one to be absent from the primed rootfs -- the gdm
+    # pam stacks, apparmor profiles, unit files and unit-graph
+    # symlinks, fontconfig additions and the keyring wrapper among
+    # them. Two existence classes in the prime are NOT leaks:
+    # * paths the chisel slices stage in every build (the payload
+    #   mirrors or overrides some of them: nsswitch.conf, fontconfig
+    #   files the slices have since learned to ship). Read the set
+    #   from the manifest the build maintains, with the same zstd
+    #   decompression tools/refresh-manifest.py uses.
+    # * /var/lib/extrausers/group and gshadow, which hook
+    #   013-setup-extrausers creates on every build (on desktop builds
+    #   the payload's stubs replace the hook's defaults; on regular
+    #   builds the hook owns the files).
+    # The #485 pam_extrausers_chkpwd permission fix that regular
+    # builds legitimately carry changes a chisel-staged file's modes
+    # only, which an existence check does not see.
+    python3 - "$sysroot" > "$tmp/base.paths" <<'PYEOF'
+import json, sys
+from compression import zstd
+with zstd.open(sys.argv[1] + "/var/lib/chisel/manifest.wall") as wall:
+    for line in wall.read().decode("utf-8").split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        path = json.loads(line).get("path")
+        if isinstance(path, str) and path.startswith("/"):
+            print(path.lstrip("/"))
+PYEOF
+    leak=
+    while IFS= read -r -d '' f; do
+        rel="${f#./}"
+        [ -e "$sysroot/$rel" ] || [ -L "$sysroot/$rel" ] || continue
+        if grep -Fqx -- "$rel" "$tmp/base.paths"; then continue; fi
+        case "$rel" in
+            var/lib/extrausers/group | var/lib/extrausers/gshadow)
+                continue ;;
+        esac
+        echo "E: desktop payload file leaked into a regular build:" \
+            "$rel" >&2
+        leak=1
+    done < <(cd "$src/variants/desktop/static" \
+             && find . \( -type f -o -type l \) -print0)
+    [ -z "$leak" ]
+
     echo "regular build carries no desktop payload"
 fi
 
