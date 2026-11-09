@@ -3,11 +3,11 @@ name: build-snap-variant
 # (tools/build-variant.sh desktop) and publishes it for the
 # ubuntu-core-desktop thin image CI to consume.
 #
-# Branch note: this workflow currently triggers on desktop/26-thin. The
-# branch will be renamed to desktop/26 once the maintainer-runbook
-# rename lands (the old fat desktop/26 CI in build-snap.yml is still
-# live until then and publishes the FAT base to the desktop-26-latest
-# release). The variant snap is therefore published to its own
+# Branch note: this workflow triggers on desktop/26 — the thin variant
+# branch (renamed from desktop/26-thin on 2026-11-09 when the admin
+# runbook landed: old fat desktop/26 -> desktop/26-fat, thin
+# desktop/26-thin -> desktop/26, default switched to thin). The fat
+# branch's own build-snap.yml lives on with desktop/26-fat.
 # desktop-26-thin-latest release: the two rolling releases can never
 # clobber each other, and the image CI picks the thin one by tag. After
 # the rename, change the trigger below to desktop/26; the fat
@@ -34,7 +34,7 @@ on:
   pull_request:
   push:
     branches:
-      - desktop/26-thin
+      - desktop/26
   workflow_dispatch:
 
 permissions:
@@ -86,7 +86,7 @@ jobs:
           gh release view desktop-26-thin-latest -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
             || gh release create desktop-26-thin-latest -R "$GITHUB_REPOSITORY" \
                  --title "desktop/26-thin latest desktop-variant snap" \
-                 --notes "Rolling latest desktop-variant core26-desktop build from desktop/26-thin; assets are replaced on every green build. Consumed by ubuntu-core-desktop's thin image CI until the desktop/26 rename lands."
+                 --notes "Rolling latest desktop-variant core26-desktop build from desktop/26 (formerly desktop/26-thin); assets are replaced on every green build. Consumed by ubuntu-core-desktop's thin image CI. The 2026-11-09 rename: old fat desktop/26 → desktop/26-fat; thin desktop/26-thin → desktop/26; default switched.)""
           gh release upload desktop-26-thin-latest ${{ matrix.asset }} -R "$GITHUB_REPOSITORY" --clobber
       - uses: actions/upload-artifact@v4
         with:
