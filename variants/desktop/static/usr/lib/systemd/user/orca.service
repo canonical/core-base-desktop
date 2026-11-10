@@ -1,0 +1,81 @@
+# THIN-VARIANT ADAPTER for gsd-a11y-settings' reader start path.
+#
+# TEMPORARY adapter with a removal plan (below): on thin there is no host
+# /usr/bin/orca and no host orca.service, so gsd-a11y-settings'
+# StartUnit("orca.service") fails with NoSuchUnit and its PATH-spawn
+# fallback execs a /usr/bin/orca that exists in no namespace - the
+# greeter stays silent.
+# This unit is the adapter: gsd's call starts it, and it execs the a11y
+# snap's reader.
+#
+# REMOVAL PLAN: retire this file when gsd-a11y-settings targets the
+# snap's own generated unit directly — i.e. the integration change that
+# makes gsd (and the snapd systemd-user-control grants) call
+# snap.ubuntu-desktop-a11y.orca.service instead of orca.service. That is
+# the retirement GATE: one process owner (the snap's generated unit),
+# with this file deleted in the same change so no second unit can spawn
+# a duplicate reader.
+#
+# ExecStart uses the /snap/bin app alias — the same exec shape the
+# core-override drop-ins use for snap apps (e.g.
+# org.gnome.SettingsDaemon.A11ySettings.service.d/core-override.conf:
+# ExecStart=/snap/bin/ubuntu-desktop-session.gsd-a11y-settings).
+# Inside a user unit snap run establishes confinement exactly as it does
+# for snapd's own generated user daemons.
+#
+# WANTS, RECONCILED FOR THIN: upstream wants at-spi-dbus-bus.service and
+# speech-dispatcher.socket — host units that do not exist on thin. The
+# a11y snap's own user daemons replace them:
+#   at-spi-dbus-bus.service
+#     -> snap.ubuntu-desktop-a11y.bus.service
+#        (the snap's Type=dbus user daemon owning org.a11y.Bus, which
+#        also brings up the private accessibility bus)
+#   speech-dispatcher.socket
+#     -> snap.ubuntu-desktop-a11y.speech-dispatcher.speechd-socket.socket
+#        (snapd's generated socket unit for the snap's speech-dispatcher
+#        daemon; same rationale as upstream — the speech server runs in
+#        its own cgroup and is not killed alongside Orca)
+# Wants that reference missing units are non-fatal, so a thin image
+# assembled without the a11y snap degrades to a failed reader start
+# rather than breaking session start.
+#
+# NO [Install] SECTION, DELIBERATELY: initially
+# disabled installation — gsd's StartUnit is the ONLY spawner for the
+# reader. Upstream's [Install] WantedBy=graphical-session.target is
+# dropped so `systemctl --user enable orca.service` has nothing to work
+# with and nothing can auto-start the reader at user-manager startup.
+# Do not re-add [Install]: gsd-a11y-settings ALSO calls
+# EnableUnitFilesWithFlags/DisableUnitFilesWithFlags on orca.service
+# (the systemd-user-control grants), which with a static vendored unit
+# are meaningless-but-harmless — the unit exists, and its enablement
+# state is irrelevant because nothing wants it and there is no install
+# target. That interplay is documented here so it is not mistaken for a
+# reason to restore [Install].
+#
+# Deviations from the deb unit (which full-desktop images ship from the
+# orca deb; this file lands only in thin images): Type=notify-reload and
+# WatchdogSec=6 are dropped — the snap's reader does not honour the
+# sd_notify watchdog contract, and WatchdogSec without it kills the
+# service on a timer; Restart=always becomes Restart=on-failure so a
+# crash-looping reader is capped by the default start limit instead of
+# respawning forever. Type=simple is sufficient for gsd's StartUnit
+# call, which only waits for the start job, not for readiness.
+
+[Unit]
+Description=Orca Screen Reader (thin-variant snap adapter)
+Documentation=man:orca(1)
+Documentation=https://orca.gnome.org/
+PartOf=graphical-session.target
+After=graphical-session.target
+
+# We're going to need these, so instead of waiting for them to
+# dbus activate later, let's start them in parallel with Orca.
+Wants=snap.ubuntu-desktop-a11y.bus.service
+Wants=snap.ubuntu-desktop-a11y.speech-dispatcher.speechd-socket.socket
+After=snap.ubuntu-desktop-a11y.speech-dispatcher.speechd-socket.socket
+
+[Service]
+Type=simple
+ExecStart=/snap/bin/ubuntu-desktop-a11y.orca
+Restart=on-failure
+Slice=session.slice
