@@ -105,6 +105,38 @@ if [ -e "$sysroot/etc/pam.d/gdm-password" ]; then
         exit 1
     }
 
+    # The pipewire snap's user daemons are deliberately NOT skipped in
+    # greeter/initial-setup user managers, although they once were: the
+    # fat base's hook 002.1 used to write
+    # etc/systemd/user/<service>.d/70-gdm-skip.conf
+    # (ConditionGroup=!gdm !gnome-initial-setup) on
+    # snap.pipewire.pipewire-bin/wireplumber-bin/pipewire-pulse because
+    # their AppArmor confinement was believed to reject creating
+    # pipewire's lock file under /run/user/<uid>, making the daemons
+    # fail in a noisy restart loop -- and "no audio is wanted in those
+    # sessions anyway".
+    #
+    # Both halves of that rationale are stale. The lock-file claim
+    # predates snapd running user daemons with a snap-private
+    # XDG_RUNTIME_DIR (/run/user/<uid>/snap.pipewire, granted wholesale
+    # by the AppArmor template), so the locks land inside the snap's
+    # own subtree; and audio IS wanted in those sessions: screen-reader
+    # speech at the login screen and during initial setup is required
+    # for accessibility parity with stock Ubuntu, whose greeter runs
+    # pipewire/wireplumber/pipewire-pulse in the gdm-greeter session.
+    # Do not re-add the skip drop-ins for them.
+    for service in \
+        snap.pipewire.pipewire-bin \
+        snap.pipewire.wireplumber-bin \
+        snap.pipewire.pipewire-pulse
+    do
+        f="etc/systemd/user/${service}.service.d/70-gdm-skip.conf"
+        if [ -e "$sysroot/$f" ] || [ -L "$sysroot/$f" ]; then
+            echo "E: pipewire gdm-skip drop-in must stay absent: $f" >&2
+            exit 1
+        fi
+    done
+
     echo "desktop variant payload is applied exactly once"
     echo "desktop variant deb-sourced payload ELFs are present"
 else
