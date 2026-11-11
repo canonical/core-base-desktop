@@ -64,6 +64,7 @@ case "${SNAP_BUILD_VARIANT:-}" in
     desktop)
         dirs+=(
             /etc/colord
+            /etc/dconf
             /etc/firefox
             /var/lib/AccountsService
             /var/lib/gdm3
@@ -74,6 +75,47 @@ case "${SNAP_BUILD_VARIANT:-}" in
         )
         ;;
 esac
+
+# /etc/dconf (the wizard accessibility handover channel, see
+# writable.conf.d/desktop.conf): the desktop variant owns the mode of
+# the rootfs directory so the factory copy below ships it and the fstab
+# bind has a mount point.
+if [ "${SNAP_BUILD_VARIANT:-}" = desktop ]; then
+    # The directory itself is dconf's system config dir: enforce it
+    # root:root 0755 - unprivileged users must not be able to plant
+    # profiles or dbs into it. The wizard-uid handover write goes to the
+    # group-restricted channel subdir (/etc/dconf/channel/handover,
+    # root:gnome-initial-setup 1770) created and re-enforced at boot by
+    # variants/desktop/static/usr/lib/tmpfiles.d/ucd-handover.conf, so
+    # the top directory never needs to be writable. An existing tree
+    # (a reused build environment, or a slice shipping it in the
+    # future) is re-owned loudly rather than trusted; only a
+    # non-directory fails.
+    if [ -e "${ROOTDIR}/etc/dconf" ]; then
+        if [ ! -d "${ROOTDIR}/etc/dconf" ] || [ -L "${ROOTDIR}/etc/dconf" ]; then
+            echo "ERROR: ${ROOTDIR}/etc/dconf exists and is not a directory" >&2
+            exit 1
+        fi
+        echo "I: /etc/dconf already exists; enforcing root:root 0755 on the factory template"
+        chown 0:0 "${ROOTDIR}/etc/dconf"
+        chmod 0755 "${ROOTDIR}/etc/dconf"
+    else
+        mkdir -m 0755 -p "${ROOTDIR}/etc/dconf"
+    fi
+    # The chroot hooks (005-initialize-systemd.chroot) already ran
+    # systemd-tmpfiles over this tree, so the channel subdir may exist
+    # with the build chroot's transient numeric gid for the
+    # provisioning group. Ship a neutral root:root template with the
+    # sticky group-write bits; the boot tmpfiles rule assigns the
+    # runtime gnome-initial-setup group by name and re-enforces the
+    # modes on every boot.
+    if [ -d "${ROOTDIR}/etc/dconf/channel/handover" ]; then
+        echo "I: resetting the shipped /etc/dconf channel template to root:root (modes preserved)"
+        chown -R 0:0 "${ROOTDIR}/etc/dconf"
+        chmod 0755 "${ROOTDIR}/etc/dconf" "${ROOTDIR}/etc/dconf/channel"
+        chmod 1770 "${ROOTDIR}/etc/dconf/channel/handover"
+    fi
+fi
 
 for dir in "${dirs[@]}"; do
     parent="$(dirname "${dir}")"

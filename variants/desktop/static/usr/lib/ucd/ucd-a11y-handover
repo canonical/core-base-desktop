@@ -1,0 +1,224 @@
+#!/bin/sh
+# Apply the wizard's accessibility handover.
+#
+# provd (running inside the wizard session under the dynamic
+# gnome-initial-setup uid) records the wizard session's accessibility
+# preferences and the handover target username in
+# /etc/dconf/channel/handover when it creates the user (provd
+# internal/services/user/handover.go). The wizard session's dconf
+# database lives in the ephemeral gdm home that is wiped when
+# provisioning completes, so the created user would otherwise start
+# with the reader preference lost.
+#
+# The channel directory is root:gnome-initial-setup 1731 (created and
+# re-enforced at every boot by usr/lib/tmpfiles.d/ucd-handover.conf):
+# group-writable only for the provisioning group - the dynamic wizard
+# uid's only group - while every other user can traverse it (others=x)
+# but not list or create anything in it; that traverse is what lets the
+# TARGET user's session manager (not in the provisioning group) read
+# the two recorded files by exact path. This script re-verifies the
+# directory and both recorded files before applying anything, applies
+# only the allowlisted schema/key pairs below
+# (anything else in the keyfile is logged and skipped, so a handover
+# can never set, say, media-keys custom-keybinding commands - those
+# execute on the next keypress), validates every value against the
+# key's expected type, and applies only to a target username that
+# exists in the system user database. The recorded name is never
+# blindly trusted, and a handover can apply at most the wizard's own
+# accessibility keyset.
+#
+# This script runs as a user-manager oneshot for every session; it
+# applies the recorded keys through the real session gsettings/dconf
+# path - so gnome-settings-daemon sees the change and actuates the
+# reader exactly like a GUI toggle - and only for the target user,
+# once per user (marker in $HOME/.cache).
+#
+# gsettings is taken from the gnome-desktop-runtime content snap: the
+# desktop base ships the glib libraries and schemas but not the
+# gsettings CLI (verified core26-desktop 20261111+desktop), while the
+# SDK runtime the session snap consumes carries both.
+
+set -u
+
+channel=/etc/dconf/channel/handover
+ini=$channel/ucd-handover.ini
+targetfile=$channel/ucd-handover-user
+
+# CROSS-SNAP CONTRACT: the user session runs with XDG_CONFIG_HOME
+# redirected into the session snap's common dir (ubuntu-desktop-
+# session), and that is where the session's gsettings writes land - a
+# plain write from the user manager (no redirect) goes nowhere the
+# session reads (verified on a first-boot bake: the write reported
+# success while every session-side readback stayed false; with the
+# redirect the same write actuated orca). If the session snap's
+# common-config layout changes, this path changes with it.
+XDG_CONFIG_HOME="$HOME/snap/ubuntu-desktop-session/common/.config"
+export XDG_CONFIG_HOME
+
+# The only keys a handover may apply: the wizard accessibility page's
+# keyset (the same list provd records, provd
+# internal/services/user/handover.go a11yHandoverKeys), one entry per
+# line: schema key kind. Kinds: bool, double. Everything else in the
+# keyfile is logged and skipped.
+ALLOWED='
+org.gnome.desktop.a11y.applications screen-reader-enabled bool
+org.gnome.desktop.a11y.applications screen-keyboard-enabled bool
+org.gnome.desktop.a11y.applications screen-magnifier-enabled bool
+org.gnome.desktop.a11y.interface high-contrast bool
+org.gnome.desktop.a11y.keyboard stickykeys-enable bool
+org.gnome.desktop.a11y.keyboard slowkeys-enable bool
+org.gnome.desktop.a11y.keyboard mousekeys-enable bool
+org.gnome.desktop.interface enable-animations bool
+org.gnome.desktop.interface text-scaling-factor double
+org.gnome.desktop.wm.preferences visual-bell bool
+'
+
+[ -r "$ini" ] || exit 0
+[ -r "$targetfile" ] || exit 0
+
+# ---- channel verification -----------------------------------------------
+# The channel directory must be root:gnome-initial-setup 1731 (sticky,
+# group-writable for provisioning, others traverse-only) and both files
+# regular, not world-writable, and owned by the provisioning
+# group or root. Anything else: refuse (the tmpfiles rule restores the
+# correct state at the next boot).
+gis_gid=$(getent group gnome-initial-setup 2>/dev/null | cut -d: -f3)
+[ -n "$gis_gid" ] || exit 0
+
+bad=0
+[ "$(stat -c '%u' "$channel" 2>/dev/null)" = 0 ] || bad=1
+[ "$(stat -c '%g' "$channel" 2>/dev/null)" = "$gis_gid" ] || bad=1
+[ "$(stat -c '%a' "$channel" 2>/dev/null)" = 1731 ] || bad=1
+for f in "$ini" "$targetfile"; do
+    [ -f "$f" ] || bad=1
+    [ -L "$f" ] && bad=1
+    # world-writable bits on a recorded file: refuse
+    case "$(stat -c '%a' "$f" 2>/dev/null)" in
+        *[2367]) bad=1 ;;
+    esac
+    u=$(stat -c '%u' "$f" 2>/dev/null)
+    g=$(stat -c '%g' "$f" 2>/dev/null)
+    [ "$g" = "$gis_gid" ] || [ "$u" = 0 ] || bad=1
+done
+[ "$bad" = 0 ] || {
+    echo "ucd-a11y-handover: refusing an unsafe handover channel ($channel)" >&2
+    exit 0
+}
+
+# ---- target verification -------------------------------------------------
+# The target must be a well-formed username and must exist in the
+# system's user database (passwd/extrausers via NSS): the recorded
+# name is a pointer, not an authority.
+target=$(head -n 1 "$targetfile" 2>/dev/null) || exit 0
+case "$target" in
+    [!a-z0-9_]*|*[!a-z0-9_.-]*) exit 0 ;;
+esac
+getent passwd "$target" >/dev/null 2>&1 || exit 0
+[ "$(id -un 2>/dev/null)" = "$target" ] || exit 0
+
+marker="$HOME/.cache/ucd-a11y-handover.done"
+[ -e "$marker" ] && exit 0
+
+runtime=""
+for candidate in /snap/gnome-desktop-runtime/current /snap/gnome-desktop-runtime/x1; do
+    if [ -x "$candidate/usr/bin/gsettings" ]; then
+        runtime="$candidate"
+        break
+    fi
+done
+[ -n "$runtime" ] || exit 0
+
+if [ -d "$runtime/usr/share/glib-2.0/schemas" ]; then
+    XDG_DATA_DIRS="$runtime/usr/share${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
+    export XDG_DATA_DIRS
+fi
+
+# The apply must go through the session's real dconf backend: libgio
+# falls back to the keyfile backend when it cannot load the dconf gio
+# module, and a keyfile write lands in ~/.config/glib-2.0 where no
+# session consumer (gsd, the reader) reads it - the handover would
+# "succeed" while the reader never actuates (verified live: the apply
+# wrote the keyfile, the marker was written, the session's dconf db
+# stayed untouched). Point GIO_EXTRA_MODULES at the runtime's modules
+# (arch-neutral glob) and pin GSETTINGS_BACKEND=dconf so a missing
+# module fails the apply loudly instead of silently degrading; a failed
+# apply leaves the marker unwritten and retries at the next login.
+modules_dir=$(ls -d "$runtime"/usr/lib/*/gio/modules 2>/dev/null | head -n 1)
+if [ -n "$modules_dir" ]; then
+    GIO_EXTRA_MODULES="$modules_dir"
+    export GIO_EXTRA_MODULES
+fi
+GSETTINGS_BACKEND=dconf
+export GSETTINGS_BACKEND
+
+# key_kind SCHEMA KEY: the expected value kind from the allowlist, or
+# empty when the pair is not allowlisted.
+key_kind() {
+    printf '%s\n' "$ALLOWED" | while read -r as akey akind _rest; do
+        if [ "$as" = "$1" ] && [ "$akey" = "$2" ]; then
+            printf '%s' "$akind"
+            break
+        fi
+    done
+}
+
+schema=
+applied=0
+while IFS= read -r line; do
+    case "$line" in
+        \#*) continue ;;
+        \[*\])
+            schema=${line#[}
+            schema=${schema%]}
+            continue
+            ;;
+        *=*)
+            [ -n "$schema" ] || continue
+            key=${line%%=*}
+            val=${line#*=}
+            # Schema/key names are GSettings identifiers; anything odd
+            # in the keyfile cannot be a real key - skip it before the
+            # allowlist match.
+            case "$schema$key" in
+                *[!A-Za-z0-9._-]*)
+                    echo "ucd-a11y-handover: skipped malformed key ${schema}.${key}" >&2
+                    continue
+                    ;;
+            esac
+            kind=$(key_kind "$schema" "$key")
+            if [ -z "$kind" ]; then
+                echo "ucd-a11y-handover: skipped non-allowlisted key ${schema}.${key}" >&2
+                continue
+            fi
+            case "$kind" in
+                bool)
+                    printf '%s' "$val" | grep -Eq '^(true|false)$' || {
+                        echo "ucd-a11y-handover: skipped ${schema}.${key}: not a bool" >&2
+                        continue
+                    }
+                    ;;
+                double)
+                    printf '%s' "$val" | grep -Eq '^-?[0-9]+([.][0-9]+)?$' || {
+                        echo "ucd-a11y-handover: skipped ${schema}.${key}: not a double" >&2
+                        continue
+                    }
+                    ;;
+                *)
+                    echo "ucd-a11y-handover: skipped ${schema}.${key}: unknown kind" >&2
+                    continue
+                    ;;
+            esac
+            if "$runtime/usr/bin/gsettings" set "$schema" "$key" "$val"; then
+                applied=1
+            else
+                echo "ucd-a11y-handover: gsettings set ${schema}.${key} failed" >&2
+            fi
+            ;;
+    esac
+done < "$ini"
+
+if [ "$applied" = 1 ]; then
+    mkdir -p "$HOME/.cache"
+    : > "$marker"
+fi
+exit 0

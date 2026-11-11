@@ -1,0 +1,22 @@
+[Unit]
+Description=Apply the wizard accessibility handover
+# provd records the wizard session's accessibility preferences and the
+# created username in /etc/dconf/channel/handover at user creation - a
+# root:gnome-initial-setup 1731 channel, created and re-enforced at
+# boot by usr/lib/tmpfiles.d/ucd-handover.conf, group-writable only for
+# the provisioning group. This unit applies them at the target user's
+# first login through the real session gsettings path, allowlisted to
+# the wizard accessibility keyset (see the script for the channel,
+# file, target and value checks). Runs for every user manager; the
+# script filters to the handover target user and stays one-shot per
+# user via a $HOME marker.
+Before=graphical-session-pre.target
+Requires=dbus.socket
+After=dbus.socket
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/ucd/ucd-a11y-handover
+
+[Install]
+WantedBy=graphical-session-pre.target
