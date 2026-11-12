@@ -612,6 +612,7 @@ parts:
     plugin: nil
     stage-packages:
       - provd
+      - ubuntu-wallpapers
     override-build: |
       # See desktop-packages' override-build above for why this
       # relocation is needed.
