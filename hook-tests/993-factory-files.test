@@ -22,6 +22,9 @@ set -eu
 declare -A known_mounts
 
 sysroot="${PWD}"
+grep -Fqx '/writable/system-data/etc/gdm3 /etc/gdm3 none bind,x-initrd.mount 0 0' "${sysroot}/etc/fstab"
+grep -Fqx 'C /writable/system-data/etc/gdm3' "${sysroot}/usr/lib/tmpfiles.d/core-writable.conf"
+test -d "${sysroot}/usr/share/factory/writable/system-data/etc/gdm3"
 
 # First, we check /etc/fstab
 while read line; do

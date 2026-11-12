@@ -28,6 +28,7 @@
 /writable/system-data/etc/motd.d /etc/motd.d none bind,x-initrd.mount 0 0
 /writable/system-data/etc/colord /etc/colord none bind,x-initrd.mount 0 0
 /writable/system-data/etc/chrony /etc/chrony none bind,x-initrd.mount 0 0
+/writable/system-data/etc/gdm3 /etc/gdm3 none bind,x-initrd.mount 0 0
 /writable/system-data/var/lib/AccountsService /var/lib/AccountsService none bind 0 0
 /writable/system-data/var/lib/gdm3 /var/lib/gdm3 none bind 0 0
 /writable/system-data/usr/share/wayland-sessions /usr/share/wayland-sessions none bind 0 0
