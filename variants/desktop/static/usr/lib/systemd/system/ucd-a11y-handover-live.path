@@ -1,14 +1,21 @@
 [Unit]
 Description=Watch for the handover channel being written (the CreateUser moment)
-# The channel ini appears exactly once per provisioning, at provd's
+# The channel ini is written once per provisioning, at provd's
 # CreateUser — while the wizard session is still alive and its dconf
-# database still holds the live reader state. The ini persists on the
-# writable bind, so on later boots the path unit triggers immediately and
-# the service exits early (the wizard home is gone; nothing to capture).
+# database still holds the live reader state. This is a CHANGE watch,
+# deliberately NOT an existence watch: the ini persists on the writable
+# bind, and PathExists= re-activates the oneshot service for as long as
+# the file exists. On the live image that turned every provisioning —
+# and every later boot, because the stale ini is still there — into a
+# burst of hundreds of runs (366 observed in 8 s), each spawning a
+# transient logind session through su, until the path unit's trigger
+# limit failed the unit and marked the boot degraded. PathChanged=
+# fires on the write that creates the ini (the CreateUser moment) and
+# then stays quiet; a stale ini produces no activation at all.
 RequiresMountsFor=/etc/dconf/channel/handover
 
 [Path]
-PathExists=/etc/dconf/channel/handover/ucd-handover.ini
+PathChanged=/etc/dconf/channel/handover/ucd-handover.ini
 
 [Install]
 WantedBy=multi-user.target
