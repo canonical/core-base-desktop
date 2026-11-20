@@ -47,10 +47,10 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-26.04
             asset: core26-desktop.snap
           - arch: arm64
-            runs-on: ubuntu-24.04-arm
+            runs-on: ubuntu-26.04-arm
             asset: core26-desktop-arm64.snap
     runs-on: ${{ matrix.runs-on }}
     steps:
