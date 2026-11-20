@@ -168,16 +168,24 @@ if [ -d "$runtime/usr/share/glib-2.0/schemas" ]; then
     export XDG_DATA_DIRS
 fi
 
-# The apply must go through the session's real dconf backend: libgio
-# falls back to the keyfile backend when it cannot load the dconf gio
-# module, and a keyfile write lands in ~/.config/glib-2.0 where no
-# session consumer (gsd, the reader) reads it - the handover would
-# "succeed" while the reader never actuates (verified live: the apply
-# wrote the keyfile, the marker was written, the session's dconf db
-# stayed untouched). Point GIO_EXTRA_MODULES at the runtime's modules
-# (arch-neutral glob) and pin GSETTINGS_BACKEND=dconf so a missing
-# module fails the apply loudly instead of silently degrading; a failed
-# apply leaves the marker unwritten and retries at the next login.
+# The apply writes BOTH stores. T60 verified live that the session's
+# glib runs the KEYFILE backend: the session snap's gio/modules is
+# empty (libdconfsettings.so exists only in the gnome-desktop-runtime),
+# so every session-side GSettings client (gsd-a11y-settings included)
+# falls back to $XDG_CONFIG_HOME/glib-2.0/settings/keyfile — the
+# chord's toggle lands there and actuates the running plugin through
+# the keyfile backend's GFileMonitor in under a millisecond, while the
+# session's dconf user db (served by the session's own dconf service)
+# is a DEAD STORE no session consumer reads (a dbus-monitor capture
+# showed zero Writer Changed signals for any write; the earlier belief
+# that "no session consumer reads the keyfile" was the reverse of the
+# live truth — the dconf write was the one nothing read). So the
+# KEYFILE pass (bus-free, the snap-common redirect path) is what makes
+# the user's session actuate at its next start, and the DCONF pass
+# (GIO_EXTRA_MODULES at the runtime's modules + GSETTINGS_BACKEND=dconf,
+# so a missing module fails loudly instead of silently degrading into a
+# second keyfile write) keeps the durable dconf record the boot-time
+# mirror falls back to reading.
 modules_dir=$(ls -d "$runtime"/usr/lib/*/gio/modules 2>/dev/null | head -n 1)
 if [ -n "$modules_dir" ]; then
     GIO_EXTRA_MODULES="$modules_dir"
@@ -185,6 +193,8 @@ if [ -n "$modules_dir" ]; then
 fi
 GSETTINGS_BACKEND=dconf
 export GSETTINGS_BACKEND
+XDG_CONFIG_HOME="$HOME/snap/ubuntu-desktop-session/common/.config"
+export XDG_CONFIG_HOME
 
 # key_kind SCHEMA KEY: the expected value kind from the allowlist, or
 # empty when the pair is not allowlisted.
@@ -246,6 +256,15 @@ while IFS= read -r line; do
             if [ "$schema.$key" = "org.gnome.desktop.a11y.applications.screen-reader-enabled" ] && [ "$reader_live" = true ]; then
                 echo "ucd-a11y-handover: screen-reader-enabled: live-read override true (the ini recorded $val)" >&2
                 val=true
+            fi
+            # THE LIVE STORE FIRST (the keyfile the session's glib
+            # actually reads — see the MECHANISM comment above), then the
+            # dconf record. Either success applies the key; both are
+            # logged individually.
+            if GSETTINGS_BACKEND=keyfile "$runtime/usr/bin/gsettings" set "$schema" "$key" "$val"; then
+                applied=1
+            else
+                echo "ucd-a11y-handover: keyfile set ${schema}.${key} failed" >&2
             fi
             if "$runtime/usr/bin/gsettings" set "$schema" "$key" "$val"; then
                 applied=1
