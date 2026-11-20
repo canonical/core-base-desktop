@@ -200,8 +200,19 @@ key_kind() {
     done
 }
 
+# value_matches KIND EXPECTED ACTUAL: gsettings get prints bools as
+# true/false and doubles like the value (1 -> 1.0), so compare by kind.
+value_matches() {
+    case "$1" in
+        bool) [ "$2" = "$3" ] ;;
+        double) awk -v a="$2" -v b="$3" 'BEGIN { exit !(a + 0 == b + 0) }' ;;
+        *) return 1 ;;
+    esac
+}
+
 schema=
 applied=0
+failed=0
 while IFS= read -r line; do
     case "$line" in
         \#*) continue ;;
@@ -250,17 +261,43 @@ while IFS= read -r line; do
                 echo "ucd-a11y-handover: screen-reader-enabled: live-read override true (the ini recorded $val)" >&2
                 val=true
             fi
-            # THE LIVE STORE FIRST (dconf, through the user session's own
-            # dconf service — see the comments above), then the legacy
-            # keyfile as a fallback if the dconf write fails. Either
-            # success applies the key; both are logged individually.
-            if "$runtime/usr/bin/gsettings" set "$schema" "$key" "$val"; then
+            # The dconf set is verified by a readback before it counts.
+            # gsettings set exits 0 even when the dconf commit fails
+            # (verified: with an unreachable dconf bus the set returns 0
+            # and the key stays at its old value), so the exit code alone
+            # cannot gate the once-per-user marker. The user session's
+            # dconf service may still be activating on the first attempt;
+            # retry briefly. Only a verified dconf readback sets
+            # applied=1 (the live store on this line); the keyfile write
+            # below is a best-effort compatibility fallback and does not
+            # mark the handover done.
+            _ok=
+            _i=0
+            while [ "$_i" -lt 3 ]; do
+                if "$runtime/usr/bin/gsettings" set "$schema" "$key" "$val"; then
+                    _got=$("$runtime/usr/bin/gsettings" get "$schema" "$key" 2>/dev/null) || _got=!
+                    if value_matches "$kind" "$val" "$_got"; then
+                        _ok=1
+                        break
+                    fi
+                fi
+                _i=$((_i + 1))
+                sleep 1
+            done
+            if [ -n "$_ok" ]; then
                 applied=1
             else
-                echo "ucd-a11y-handover: dconf set ${schema}.${key} failed" >&2
+                failed=1
+                echo "ucd-a11y-handover: dconf set ${schema}.${key} did not take effect" >&2
                 if GSETTINGS_BACKEND=keyfile "$runtime/usr/bin/gsettings" set "$schema" "$key" "$val"; then
-                    applied=1
+                    _got=$(GSETTINGS_BACKEND=keyfile "$runtime/usr/bin/gsettings" get "$schema" "$key" 2>/dev/null) || _got=!
+                    if value_matches "$kind" "$val" "$_got"; then
+                        echo "ucd-a11y-handover: wrote ${schema}.${key} to the legacy keyfile only (best effort)" >&2
+                    else
+                        echo "ucd-a11y-handover: keyfile fallback for ${schema}.${key} did not take effect" >&2
+                    fi
                 else
+                    failed=1
                     echo "ucd-a11y-handover: keyfile fallback set ${schema}.${key} failed" >&2
                 fi
             fi
@@ -268,7 +305,11 @@ while IFS= read -r line; do
     esac
 done < "$ini"
 
-if [ "$applied" = 1 ]; then
+# The marker is what makes the handover once-per-user: only record it
+# when every key that was present applied for real. A single failed key
+# (above all the reader) leaves the marker absent so the next session
+# retries instead of silently losing the choice forever.
+if [ "$applied" = 1 ] && [ "$failed" = 0 ]; then
     mkdir -p "$HOME/.cache"
     : > "$marker"
 fi

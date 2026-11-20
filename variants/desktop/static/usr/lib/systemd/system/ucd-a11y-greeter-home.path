@@ -1,19 +1,32 @@
 [Unit]
 Description=Watch for the greeter session's home appearing (the greeter starting)
 # The greeter session runs as the dynamic user gdm-greeter, whose home
-# (/run/gdm3/home/gdm-greeter) is created fresh on every boot the moment
+# (/run/gdm3/home/gdm-greeter*) is created fresh on every boot the moment
 # the session's first snap app spawns — neither the user nor its dconf
 # store exists earlier, so the boot-time mirror records the wanted state
 # in the channel and this unit carries it into the greeter's own store at
 # exactly the moment the store becomes writable, ahead of the session's
 # gsd-a11y-settings (whose startup reads screen-reader-enabled and starts
-# orca when it is true). The home is ephemeral (tmpfs /run), so this
-# re-fires at every boot's greeter session.
+# orca when it is true).
+#
+# This is an EDGE watch, not an existence watch. PathExistsGlob= on a
+# home that lives for the whole greeter session re-activated the oneshot
+# service for as long as the glob matched (the service's start limit was
+# disabled), so it re-wrote the recorded reader state every few seconds
+# and overrode any change made at the greeter (and spawned a transient
+# logind session through su on every run). PathChanged= on the gdm home
+# root fires once when the greeter home (an immediate child) is created,
+# once more if a later greeter session gets a new home, and not at all
+# for writes inside an existing home — verified with a systemd --user
+# test: child create triggers, child remove triggers, a write inside the
+# child does not, and a missing root triggers on its own creation and
+# again on the child's. The wizard's home lives in the same root, so its
+# creation can also fire this unit at first boot; greeter mode is a no-op
+# when there is no recorded state, and the wizard only runs before any
+# user exists.
 
 [Path]
-# The instance suffix is not deterministic (gdm-greeter, gdm-greeter-2,
-# ... — systemd's dynamic-user instance counting), so watch the glob.
-PathExistsGlob=/run/gdm3/home/gdm-greeter*
+PathChanged=/run/gdm3/home
 
 [Install]
 WantedBy=multi-user.target

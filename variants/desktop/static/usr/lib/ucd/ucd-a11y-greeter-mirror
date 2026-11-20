@@ -208,34 +208,48 @@ greeter_write() {
         log "gsettings not present at $RUNTIME/usr/bin/gsettings; not mirroring"
         return 1
     fi
+    # The gio modules live under the runtime's multiarch directory; do
+    # not hard-code x86_64 (the apply detects it the same way).
+    _modules=$(ls -d "$RUNTIME"/usr/lib/*/gio/modules 2>/dev/null | head -n 1)
+    if [ -z "$_modules" ]; then
+        log "no gio modules directory under $RUNTIME/usr/lib/*/gio/modules; not mirroring"
+        return 1
+    fi
     log "mirroring into the greeter session's dconf store ($_user, $GREETER_HOME)"
     # The inner script goes through a root-owned temporary file rather
     # than a su -c string: the same commands verified individually pass
     # while the multi-line -c form fails in the very same context (the
     # root->dynamic-user dash boundary), so the file form is the one
-    # used. The set is retried briefly: the greeter's dconf service may
-    # still be activating on the first attempt. The verify accepts only
-    # the bare boolean form (gsettings prints booleans unquoted).
+    # used. The set is retried until a readback confirms the value:
+    # gsettings set exits 0 even when the dconf commit fails, so the
+    # exit code alone cannot drive the retry (verified with an
+    # unreachable dconf bus: set returns 0, the key keeps its old
+    # value). The verify accepts only the bare boolean form (gsettings
+    # prints booleans unquoted).
     _f=/run/ucd-greeter-mirror.$$.sh
     cat > "$_f" <<EOF || { rm -f "$_f"; return 1; }
 export HOME='$GREETER_HOME'
 export XDG_CONFIG_HOME='$GREETER_HOME/snap/ubuntu-desktop-session/common/.config'
 export XDG_RUNTIME_DIR='/run/user/$_uid'
 export GSETTINGS_BACKEND=dconf
-export GIO_EXTRA_MODULES='$RUNTIME/usr/lib/x86_64-linux-gnu/gio/modules'
+export GIO_EXTRA_MODULES='$_modules'
 export XDG_DATA_DIRS='$RUNTIME/usr/share'
 export DBUS_SESSION_BUS_ADDRESS='unix:path=$_bus'
 V='$_v'
 G='$RUNTIME/usr/bin/gsettings'
 SEC='org.gnome.desktop.a11y.applications'
 i=0
+ok=0
 while [ "\$i" -lt 10 ]; do
-    "\$G" set "\$SEC" screen-reader-enabled "\$V" && break
+    "\$G" set "\$SEC" screen-reader-enabled "\$V"
+    if "\$G" get "\$SEC" screen-reader-enabled 2>/dev/null | grep -Eqx "\$V"; then
+        ok=1
+        break
+    fi
     i=\$((i + 1))
     sleep 1
 done
-[ "\$i" -lt 10 ] || exit 1
-"\$G" get "\$SEC" screen-reader-enabled | grep -Eqx "\$V" || exit 1
+[ "\$ok" = 1 ] || exit 1
 exit 0
 EOF
     chmod 0644 "$_f" && chown root:root "$_f" || { rm -f "$_f"; return 1; }
