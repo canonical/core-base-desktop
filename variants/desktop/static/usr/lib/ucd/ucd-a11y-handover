@@ -168,24 +168,17 @@ if [ -d "$runtime/usr/share/glib-2.0/schemas" ]; then
     export XDG_DATA_DIRS
 fi
 
-# The apply writes BOTH stores. T60 verified live that the session's
-# glib runs the KEYFILE backend: the session snap's gio/modules is
-# empty (libdconfsettings.so exists only in the gnome-desktop-runtime),
-# so every session-side GSettings client (gsd-a11y-settings included)
-# falls back to $XDG_CONFIG_HOME/glib-2.0/settings/keyfile — the
-# chord's toggle lands there and actuates the running plugin through
-# the keyfile backend's GFileMonitor in under a millisecond, while the
-# session's dconf user db (served by the session's own dconf service)
-# is a DEAD STORE no session consumer reads (a dbus-monitor capture
-# showed zero Writer Changed signals for any write; the earlier belief
-# that "no session consumer reads the keyfile" was the reverse of the
-# live truth — the dconf write was the one nothing read). So the
-# KEYFILE pass (bus-free, the snap-common redirect path) is what makes
-# the user's session actuate at its next start, and the DCONF pass
-# (GIO_EXTRA_MODULES at the runtime's modules + GSETTINGS_BACKEND=dconf,
-# so a missing module fails loudly instead of silently degrading into a
-# second keyfile write) keeps the durable dconf record the boot-time
-# mirror falls back to reading.
+# The apply writes the LIVE store first and keeps the old keyfile as a
+# compatibility fallback. The session's glib runs the DCONF backend (the
+# session snap sets GSETTINGS_BACKEND=dconf and points GIO_EXTRA_MODULES
+# at the content runtime's modules; the session wrapper no longer forces
+# keyfile), so the dconf write through the user session's own dconf
+# service is what the session's gsd-a11y-settings reads and acts on. The
+# keyfile pass (bus-free, the snap-common redirect path) is retained only
+# as a last-resort fallback for data written by older images; it is not
+# read by any session consumer on this line. The dconf pass is pinned to
+# GSETTINGS_BACKEND=dconf + GIO_EXTRA_MODULES so a missing module fails
+# loudly instead of silently degrading into a second keyfile write.
 modules_dir=$(ls -d "$runtime"/usr/lib/*/gio/modules 2>/dev/null | head -n 1)
 if [ -n "$modules_dir" ]; then
     GIO_EXTRA_MODULES="$modules_dir"
@@ -257,19 +250,19 @@ while IFS= read -r line; do
                 echo "ucd-a11y-handover: screen-reader-enabled: live-read override true (the ini recorded $val)" >&2
                 val=true
             fi
-            # THE LIVE STORE FIRST (the keyfile the session's glib
-            # actually reads — see the MECHANISM comment above), then the
-            # dconf record. Either success applies the key; both are
-            # logged individually.
-            if GSETTINGS_BACKEND=keyfile "$runtime/usr/bin/gsettings" set "$schema" "$key" "$val"; then
-                applied=1
-            else
-                echo "ucd-a11y-handover: keyfile set ${schema}.${key} failed" >&2
-            fi
+            # THE LIVE STORE FIRST (dconf, through the user session's own
+            # dconf service — see the comments above), then the legacy
+            # keyfile as a fallback if the dconf write fails. Either
+            # success applies the key; both are logged individually.
             if "$runtime/usr/bin/gsettings" set "$schema" "$key" "$val"; then
                 applied=1
             else
-                echo "ucd-a11y-handover: gsettings set ${schema}.${key} failed" >&2
+                echo "ucd-a11y-handover: dconf set ${schema}.${key} failed" >&2
+                if GSETTINGS_BACKEND=keyfile "$runtime/usr/bin/gsettings" set "$schema" "$key" "$val"; then
+                    applied=1
+                else
+                    echo "ucd-a11y-handover: keyfile fallback set ${schema}.${key} failed" >&2
+                fi
             fi
             ;;
     esac

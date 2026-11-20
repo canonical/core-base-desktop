@@ -40,49 +40,44 @@
 #       spawns — so neither the user nor its store exists earlier and no
 #       static identity can be written ahead of it. This mode reads the
 #       recorded state from the channel and writes it into the greeter's
-#       LIVE GSettings store — the KEYFILE the session's glib actually
-#       reads (the session-side dconf user db is a dead store; see
-#       MECHANISM) — as the greeter session's own dynamic user, with the
-#       key verified by a backend readback and a direct file grep. The
-#       write is bus-free, so it lands ahead of the greeter session's
-#       gsd-a11y-settings startup read; a write landing after the plugin
-#       started still actuates it through the keyfile backend's
-#       GFileMonitor (the chord's own change path). The greeter then
-#       speaks the moment it renders — in both directions of the user's
-#       latest preference, with no manual chord.
+#       LIVE dconf database through the greeter session's OWN dconf
+#       service (see MECHANISM) as the greeter session's dynamic user,
+#       with the key verified by a backend readback through the same
+#       bus. A running gsd-a11y-settings receives the dconf change
+#       signal; a later-starting one reads the value at startup, so
+#       both orderings actuate. The greeter then speaks the moment it
+#       renders — in both directions of the user's latest preference,
+#       with no manual chord.
 #
 # MECHANISM (GSettings stores on the thin stack):
-# - THE SESSION'S LIVE STORE IS THE KEYFILE, NOT DCONF. The session
-#   snap's glib ships an empty gio/modules (the dconf GSettings module
-#   libdconfsettings.so exists only in the gnome-desktop-runtime), so
-#   every session-side GSettings client (gsd-a11y-settings,
-#   gsd-media-keys, gnome-shell, the chord's toggle script) FALLS BACK
-#   to the keyfile backend: $XDG_CONFIG_HOME/glib-2.0/settings/keyfile
-#   (the snap-common redirect makes that
-#   $HOME/snap/ubuntu-desktop-session/common/.config/glib-2.0/settings/
-#   keyfile). Verified live (T60): the chord's toggle lands in the
-#   keyfile (mtime = the exact actuation millisecond) and actuates the
-#   running gsd-a11y-settings within 0.2 ms through the keyfile
-#   backend's GFileMonitor (no bus involved), while a session-bus dconf
-#   write into the dconf user db updates that db (served by the
-#   session's own dconf service) WITHOUT any session consumer ever
-#   reading it — the dconf user db is a DEAD STORE for the session.
-#   The dbus-monitor capture showed ZERO ca.desrt.dconf Writer Changed
-#   signals for any write, and gsd-a11y-settings' StartUnit followed
-#   the chord's keyfile write by 0.2 ms (a dconf round trip could not).
-# - READS are file/CLI reads and need no bus: the keyfile is parsed
-#   directly; the dconf db (the apply's pinned-backend record) is read
-#   with the base's /usr/bin/dconf, selected by HOME + XDG_CONFIG_HOME.
-#   The keyfile is read first (the store every session-side write
-#   actually lands in), then the dconf db.
-# - WRITES use gsettings from the gnome-desktop-runtime snap (the base
-#   ships the glib libraries and schemas but not the gsettings CLI)
-#   with GSETTINGS_BACKEND pinned per target: the KEYFILE backend for
-#   the live store the session reads (bus-free — a plain file write;
-#   a running gsd-a11y-settings reacts through its GFileMonitor and a
-#   later-starting one reads the file at startup, so both orderings
-#   actuate), and the dconf backend (with the session bus) only where a
-#   durable dconf record is wanted (the apply).
+# - THE SESSION'S LIVE STORE IS DCONF. Every session-snap GSettings
+#   client (gsd-a11y-settings, gsd-media-keys, gnome-shell, the chord's
+#   toggle script) runs the dconf backend: the session snap sets
+#   GSETTINGS_BACKEND=dconf and points GIO_EXTRA_MODULES at the
+#   gnome-desktop-runtime's gio modules (stock core26 ships no
+#   /usr/lib/<triplet>/gio/modules), and the session's dconf service,
+#   a user daemon of the same snap, serves the per-user database under
+#   $XDG_CONFIG_HOME/dconf (the snap-common redirect makes that
+#   $HOME/snap/ubuntu-desktop-session/common/.config/dconf). The
+#   session wrapper no longer forces the keyfile backend (that export
+#   was the old thin-line workaround for the missing module).
+#   NOTE: this supersedes the T60 keyfile mechanism. The keyfile at
+#   $XDG_CONFIG_HOME/glib-2.0/settings/keyfile is now a legacy fallback
+#   for data written by older images only; nothing on this line writes
+#   it any more.
+# - READS are file/CLI reads and need no bus: dconf is read with the
+#   base's /usr/bin/dconf, selected by HOME + XDG_CONFIG_HOME. The
+#   snap-common path is read first (every session app's XDG redirect),
+#   then the plain user path; the keyfile is the last-resort fallback.
+# - WRITES go through the WRITING SIDE'S OWN dconf service on its
+#   session bus: libdconf clients share their dconf service's view of
+#   the database (the service, not the file, is the source of truth for
+#   every client, including the a11y plugin), so a write anywhere else
+#   updates the file while the readers' view stays stale. The greeter
+#   write runs as the greeter session's own dynamic user against the
+#   session bus derived from its loginctl session, with gsettings from
+#   the gnome-desktop-runtime snap (the base ships the glib libraries
+#   and schemas but not the gsettings CLI).
 #
 # Every action is logged to the journal (this is a system unit); every
 # failure is non-fatal (exit 0) — the mirror must never block boot or the
@@ -108,27 +103,15 @@ greeter_home() {
     [ -n "$_h" ] && [ -d "$_h" ] && printf '%s\n' "$_h"
 }
 
-# read_as USER: the live read as USER (su, no bus). The keyfile is read
-# first: it is the store every session-side write actually lands in (the
-# session's glib runs the keyfile backend — see MECHANISM), so the
-# user's or wizard's latest chord/settings toggles are there. The dconf
-# db (the apply's pinned-backend record and any page-app dconf writes)
-# is the second source. Prints true/false, or fails.
+# read_as USER: the live read as USER (su, no bus). dconf is the live
+# store (the session's glib runs the dconf backend — see MECHANISM), so
+# read it first: the snap-common XDG_CONFIG_HOME path every session app
+# uses, then the plain user path. The keyfile is the last-resort
+# fallback for data written by older images. Prints true/false, or
+# fails.
 read_as() {
     _home=$(getent passwd "$1" 2>/dev/null | cut -d: -f6)
     [ -n "$_home" ] || return 1
-    _kf="$_home/snap/ubuntu-desktop-session/common/.config/glib-2.0/settings/keyfile"
-    if [ -f "$_kf" ]; then
-        _v=$(awk '
-            /^\[org\/gnome\/desktop\/a11y\/applications\]/ { sec=1; next }
-            /^\[/ { sec=0 }
-            sec && $0 ~ /^[[:space:]]*screen-reader-enabled[[:space:]]*=/ {
-                sub(/^[^=]*=[[:space:]]*/, ""); print; exit
-            }' "$_kf" 2>/dev/null)
-        case "$_v" in
-            true|false) printf '%s\n' "$_v"; return 0 ;;
-        esac
-    fi
     _v=$(su "$1" -s /bin/sh -c \
         "export HOME='$_home' XDG_CONFIG_HOME='$_home/snap/ubuntu-desktop-session/common/.config'; dconf read $KEY" \
         2>/dev/null)
@@ -141,6 +124,18 @@ read_as() {
     case "$_v" in
         true|false) printf '%s\n' "$_v"; return 0 ;;
     esac
+    _kf="$_home/snap/ubuntu-desktop-session/common/.config/glib-2.0/settings/keyfile"
+    if [ -f "$_kf" ]; then
+        _v=$(awk '
+            /^\[org\/gnome\/desktop\/a11y\/applications\]/ { sec=1; next }
+            /^\[/ { sec=0 }
+            sec && $0 ~ /^[[:space:]]*screen-reader-enabled[[:space:]]*=/ {
+                sub(/^[^=]*=[[:space:]]*/, ""); print; exit
+            }' "$_kf" 2>/dev/null)
+        case "$_v" in
+            true|false) printf '%s\n' "$_v"; return 0 ;;
+        esac
+    fi
     return 1
 }
 
@@ -179,21 +174,15 @@ record_channel() {
 }
 
 # greeter_write VALUE USER: mirror the reader state into the greeter
-# session's LIVE GSettings store — the KEYFILE the session actually
-# reads (see MECHANISM; the session's glib runs the keyfile backend and
-# its dconf user db is a dead store), not the dconf db. The write runs
-# as the greeter session's own user (USER — the dynamic name from its
-# loginctl session, resolvable only while the session is live; the name
-# suffix is not deterministic across boots, so it is never guessed)
-# with gsettings pinned to GSETTINGS_BACKEND=keyfile against the
-# session's snap-common XDG_CONFIG_HOME. A keyfile write is a plain
-# file write with no bus involved, so it lands the moment the home
-# exists and is owned by the dynamic user — ahead of the session's
-# dconf service and session bus. A running gsd-a11y-settings reacts
-# through the keyfile backend's GFileMonitor (the chord's own proven
-# change path, sub-millisecond); a later-starting one reads the file at
-# startup — both orderings actuate orca. Verified by reading the key
-# back through the same backend AND grepping the file.
+# session's LIVE dconf database — through the greeter session's own
+# dconf service, not an offline file write (see MECHANISM). The write
+# runs as the greeter session's own user (USER — the dynamic name from
+# its loginctl session, resolvable only while the session is live; the
+# name suffix is not deterministic across boots, so it is never
+# guessed) against that session's bus (/run/user/<uid>/bus). A running
+# gsd-a11y-settings receives the dconf change signal; a later-starting
+# one reads the value at startup, so both orderings actuate orca. The
+# result is verified by reading it back through the same bus.
 greeter_write() {
     _v=$1
     _user=$2
@@ -202,41 +191,60 @@ greeter_write() {
         log "no greeter session user; not mirroring"
         return 1
     fi
-    log "mirroring into the greeter session's keyfile store ($_user, $GREETER_HOME)"
     _uid=$(stat -c '%u' "$GREETER_HOME" 2>/dev/null) || return 1
+    _bus=/run/user/$_uid/bus
+    # The home can appear a moment before the session bus does; wait for
+    # it so the first greeter of a boot is not missed.
+    _i=0
+    while [ ! -S "$_bus" ] && [ "$_i" -lt 30 ]; do
+        sleep 1
+        _i=$((_i + 1))
+    done
+    if [ ! -S "$_bus" ]; then
+        log "the greeter session's bus ($_bus) is not up; not mirroring"
+        return 1
+    fi
     if [ ! -x "$RUNTIME/usr/bin/gsettings" ]; then
         log "gsettings not present at $RUNTIME/usr/bin/gsettings; not mirroring"
         return 1
     fi
+    log "mirroring into the greeter session's dconf store ($_user, $GREETER_HOME)"
     # The inner script goes through a root-owned temporary file rather
     # than a su -c string: the same commands verified individually pass
     # while the multi-line -c form fails in the very same context (the
     # root->dynamic-user dash boundary), so the file form is the one
-    # used. The verify accepts only the bare boolean form (gsettings
-    # prints booleans unquoted for every backend).
+    # used. The set is retried briefly: the greeter's dconf service may
+    # still be activating on the first attempt. The verify accepts only
+    # the bare boolean form (gsettings prints booleans unquoted).
     _f=/run/ucd-greeter-mirror.$$.sh
-    {
-        printf 'export HOME=%s\n' "$GREETER_HOME"
-        printf 'export XDG_CONFIG_HOME=%s\n' "$GREETER_HOME/snap/ubuntu-desktop-session/common/.config"
-        printf 'export XDG_RUNTIME_DIR=/run/user/%s\n' "$_uid"
-        printf 'export GSETTINGS_BACKEND=keyfile\n'
-        printf 'export XDG_DATA_DIRS=%s\n' "$RUNTIME/usr/share"
-        printf 'G=%s\n' "$RUNTIME/usr/bin/gsettings"
-        printf 'KF=%s\n' "$GREETER_HOME/snap/ubuntu-desktop-session/common/.config/glib-2.0/settings/keyfile"
-        printf 'SEC=org.gnome.desktop.a11y.applications\n'
-        printf '"$G" set "$SEC" screen-reader-enabled %s || exit 1\n' "$_v"
-        printf '"$G" get "$SEC" screen-reader-enabled | grep -Eqx %s || exit 1\n' "\"$_v\""
-        printf 'awk %s "$KF" | grep -Eqx %s || exit 1\n' \
-            "'/^[[]org[/]gnome[/]desktop[/]a11y[/]applications[]]/{s=1;next} /^[[]/{s=0} s && /^[[:space:]]*screen-reader-enabled[[:space:]]*=/{sub(/^[^=]*=[[:space:]]*/,\"\");print;exit}'" \
-            "\"$_v\""
-        printf 'exit 0\n'
-    } > "$_f" && chmod 0644 "$_f" && chown root:root "$_f"
+    cat > "$_f" <<EOF || { rm -f "$_f"; return 1; }
+export HOME='$GREETER_HOME'
+export XDG_CONFIG_HOME='$GREETER_HOME/snap/ubuntu-desktop-session/common/.config'
+export XDG_RUNTIME_DIR='/run/user/$_uid'
+export GSETTINGS_BACKEND=dconf
+export GIO_EXTRA_MODULES='$RUNTIME/usr/lib/x86_64-linux-gnu/gio/modules'
+export XDG_DATA_DIRS='$RUNTIME/usr/share'
+export DBUS_SESSION_BUS_ADDRESS='unix:path=$_bus'
+V='$_v'
+G='$RUNTIME/usr/bin/gsettings'
+SEC='org.gnome.desktop.a11y.applications'
+i=0
+while [ "\$i" -lt 10 ]; do
+    "\$G" set "\$SEC" screen-reader-enabled "\$V" && break
+    i=\$((i + 1))
+    sleep 1
+done
+[ "\$i" -lt 10 ] || exit 1
+"\$G" get "\$SEC" screen-reader-enabled | grep -Eqx "\$V" || exit 1
+exit 0
+EOF
+    chmod 0644 "$_f" && chown root:root "$_f" || { rm -f "$_f"; return 1; }
     _rc=1
     if su "$_user" -s /bin/sh "$_f"; then
-        log "mirrored screen-reader-enabled=$_v into the greeter session's keyfile store ($_user, verified: backend readback + file)"
+        log "mirrored screen-reader-enabled=$_v into the greeter session's dconf store ($_user, session bus, verified)"
         _rc=0
     else
-        log "FAILED to mirror into the greeter session's keyfile store"
+        log "FAILED to mirror into the greeter session's dconf store"
     fi
     rm -f "$_f"
     return "$_rc"
@@ -360,7 +368,7 @@ case "${1:-}" in
             log "greeter: the greeter home is still root-owned after 30s; nothing to mirror"
             exit 0
         fi
-        log "greeter: the greeter session's home appeared ($_sess, $_user, $GREETER_HOME); mirroring screen-reader-enabled=$v into its keyfile store"
+        log "greeter: the greeter session's home appeared ($_sess, $_user, $GREETER_HOME); mirroring screen-reader-enabled=$v into its dconf store"
         greeter_write "$v" "$_user"
         ;;
     *)

@@ -13,7 +13,13 @@ if [ -f /snap/snapd/current/etc/profile.d/apps-bin-path.sh ]; then
 fi
 
 export XDG_CURRENT_DESKTOP=$session_type
-export GSETTINGS_BACKEND=keyfile
+# GSETTINGS_BACKEND is deliberately NOT set here. The confined session's
+# GSettings stack now runs the dconf backend (the session snap sets
+# GSETTINGS_BACKEND/GIO_EXTRA_MODULES and the dconf service is a snap
+# user daemon); exporting keyfile here would override the snap
+# environment for every confined session app and send the session's
+# settings - including the accessibility reader state - back to the
+# store nothing reads.
 
 runtime_dir="/run/user/$(id -u)"
 if ! manager_environment="$(XDG_RUNTIME_DIR="$runtime_dir" systemctl --user show-environment)"; then
@@ -88,7 +94,6 @@ activation_environment=(
     "XDG_RUNTIME_DIR=$runtime_dir"
     "XAUTHORITY=$runtime_dir/.Xauthority"
     "XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP"
-    "GSETTINGS_BACKEND=$GSETTINGS_BACKEND"
     "PATH=$PATH"
 )
 for name in "${stale_environment_vars[@]}"; do
