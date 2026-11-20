@@ -1,0 +1,22 @@
+[Unit]
+Description=Capture the wizard session's live screen reader state at handover
+# provd records the handover ini at CreateUser but carries only its cached
+# view of the reader state (the greeter chord flips the key through the
+# session bus and provd never re-reads it), and the wizard home is wiped at
+# the handoff — after that the live state is unreachable and the created
+# user would start with the reader off even when the chord turned it on.
+# This unit (path-triggered on the channel ini appearing, while the wizard
+# session is still alive) reads the live key as the wizard user, records
+# the decision for the handover apply, and records the greeter state so
+# ucd-a11y-greeter-home can carry it into the greeter's own store when the
+# greeter session starts. See ucd-a11y-greeter-mirror for the read/write
+# mechanism. Failures are logged and non-fatal.
+RequiresMountsFor=/etc/dconf/channel/handover
+# provd's ini write produces a burst of inotify events; the service is
+# idempotent, so let every trigger run rather than tripping systemd's
+# default start-rate limit mid-handover.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/ucd/ucd-a11y-greeter-mirror handover

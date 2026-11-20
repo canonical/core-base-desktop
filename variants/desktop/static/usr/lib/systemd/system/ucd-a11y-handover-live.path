@@ -1,0 +1,14 @@
+[Unit]
+Description=Watch for the handover channel being written (the CreateUser moment)
+# The channel ini appears exactly once per provisioning, at provd's
+# CreateUser — while the wizard session is still alive and its dconf
+# database still holds the live reader state. The ini persists on the
+# writable bind, so on later boots the path unit triggers immediately and
+# the service exits early (the wizard home is gone; nothing to capture).
+RequiresMountsFor=/etc/dconf/channel/handover
+
+[Path]
+PathExists=/etc/dconf/channel/handover/ucd-handover.ini
+
+[Install]
+WantedBy=multi-user.target

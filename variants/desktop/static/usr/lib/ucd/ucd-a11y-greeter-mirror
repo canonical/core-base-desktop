@@ -1,0 +1,338 @@
+#!/bin/sh
+# The boot-time and handover-time accessibility normalizer (root, system
+# side). Three modes:
+#
+#   ucd-a11y-greeter-mirror boot
+#       Runs once at every boot (ucd-a11y-greeter-mirror.service, ordered
+#       before gdm): reads the last real user's screen-reader-enabled
+#       preference (a direct dconf db read as that user, no bus) and
+#       records it in the handover channel as ucd-handover-greeter-state
+#       (0644 root:root). The value is what the greeter session should
+#       carry; the write into the greeter's own store happens later, in
+#       `greeter` mode, when the greeter session's home appears.
+#
+#   ucd-a11y-greeter-mirror handover
+#       Runs when provd writes the handover channel at wizard user
+#       creation (ucd-a11y-handover-live.path + .service). At that moment
+#       the wizard session is still alive and its dconf database holds the
+#       LIVE accessibility state (the greeter chord and the wizard's own
+#       accessibility page both write it), while provd's recorded ini
+#       carries only its cached view of the same key — the chord toggles
+#       the reader through the session bus and provd never re-reads it.
+#       The wizard home is wiped at the handoff, so this is the last
+#       moment the live state is reachable. This mode:
+#         1. reads the live key AS THE WIZARD USER (a direct db read, no
+#            bus);
+#         2. records the decision in the channel as
+#            ucd-handover-live-reader (0644 root:root) for the handover
+#            apply (ucd-a11y-handover, a user unit): a live `true`
+#            overrides the ini's recorded value there;
+#         3. records the same value as ucd-handover-greeter-state, so the
+#            greeter that renders immediately after provisioning speaks.
+#
+#   ucd-a11y-greeter-mirror greeter
+#       Runs when the greeter session's home appears
+#       (ucd-a11y-greeter-home.path + .service): the greeter session runs
+#       as the DYNAMIC user gdm-greeter (with an unpredictable instance
+#       suffix and uid — the identity only resolves while a session using
+#       it is live), whose home /run/gdm3/home/gdm-greeter<N> is created
+#       fresh on every boot the moment the session's first snap app
+#       spawns — so neither the user nor its store exists earlier and no
+#       static identity can be written ahead of it. This mode reads the
+#       recorded state from the channel and writes it into the greeter's
+#       own dconf store (both candidate db paths), chowns the files to
+#       the home directory's owner:group (the dynamic user's identity,
+#       derived from the directory rather than guessed), and verifies by
+#       reading the files back until they carry the value — so the store
+#       is guaranteed flushed before this unit exits, ahead of the
+#       greeter session's gsd-a11y-settings, whose startup reads
+#       screen-reader-enabled and starts orca automatically when it is
+#       true. The greeter then speaks the moment it renders — in both
+#       directions of the user's latest preference, with no manual chord.
+#
+# MECHANISM (dconf):
+# - READS are direct gvdb reads and need no bus: the base ships
+#   /usr/bin/dconf, and the db is selected by HOME + XDG_CONFIG_HOME.
+#   The session snap redirects XDG_CONFIG_HOME for every session app, so
+#   the live session db is under
+#   $HOME/snap/ubuntu-desktop-session/common/.config — that path is read
+#   first, then the plain $HOME/.config.
+# - WRITES go through the WRITING SIDE'S OWN dconf service on its session
+#   bus: libdconf clients share their dconf service's view of the
+#   database (the service, not the file, is the source of truth for every
+#   client, including the a11y plugin), so a write anywhere else updates
+#   the file while the readers' view stays stale. The handover target's
+#   apply runs in the target user's own session (its user manager's bus);
+#   the greeter write runs as the greeter session's own user against the
+#   session bus derived from the home directory's owner, with gsettings
+#   from the gnome-desktop-runtime snap (the base ships the glib libraries
+#   and schemas but not the gsettings CLI).
+#
+# Every action is logged to the journal (this is a system unit); every
+# failure is non-fatal (exit 0) — the mirror must never block boot or the
+# handover.
+
+set -u
+
+KEY=/org/gnome/desktop/a11y/applications/screen-reader-enabled
+CHANNEL=/etc/dconf/channel/handover
+DECISION=$CHANNEL/ucd-handover-live-reader
+STATE=$CHANNEL/ucd-handover-greeter-state
+HOMEDIR=/run/gdm3/home
+RUNTIME=/snap/gnome-desktop-runtime/current
+
+log() { printf 'ucd-a11y-greeter-mirror: %s\n' "$*" >&2; }
+
+# greeter_home: the greeter session's dynamic-user home. The instance
+# suffix is not deterministic (gdm-greeter, gdm-greeter-2, ...), so take
+# the newest matching directory — only one greeter session exists at a
+# time, and a stale instance cannot outlive its session on tmpfs /run.
+greeter_home() {
+    _h=$(ls -td1 "$HOMEDIR"/gdm-greeter* 2>/dev/null | head -n 1)
+    [ -n "$_h" ] && [ -d "$_h" ] && printf '%s\n' "$_h"
+}
+
+# read_as USER: the direct db read as USER (su, no bus), the session-snap
+# common path first, then the plain XDG path. Prints true/false, or fails.
+read_as() {
+    _home=$(getent passwd "$1" 2>/dev/null | cut -d: -f6)
+    [ -n "$_home" ] || return 1
+    _v=$(su "$1" -s /bin/sh -c \
+        "export HOME='$_home' XDG_CONFIG_HOME='$_home/snap/ubuntu-desktop-session/common/.config'; dconf read $KEY" \
+        2>/dev/null)
+    case "$_v" in
+        true|false) printf '%s\n' "$_v"; return 0 ;;
+    esac
+    _v=$(su "$1" -s /bin/sh -c \
+        "export HOME='$_home' XDG_CONFIG_HOME='$_home/.config'; dconf read $KEY" \
+        2>/dev/null)
+    case "$_v" in
+        true|false) printf '%s\n' "$_v"; return 0 ;;
+    esac
+    return 1
+}
+
+# channel_value FILE: a channel state/decision file, validated like the
+# other channel files (regular, not a symlink, not world-writable, owned
+# by root or the provisioning group, content exactly true/false).
+channel_value() {
+    _f=$1
+    [ -f "$_f" ] || return 1
+    [ ! -L "$_f" ] || return 1
+    case "$(stat -c '%a' "$_f" 2>/dev/null)" in
+        *[2367]) return 1 ;;
+    esac
+    _u=$(stat -c '%u' "$_f" 2>/dev/null) || return 1
+    _g=$(stat -c '%g' "$_f" 2>/dev/null) || return 1
+    _gis=$(getent group gnome-initial-setup 2>/dev/null | cut -d: -f3)
+    [ "$_g" = "$_gis" ] || [ "$_u" = 0 ] || return 1
+    _v=$(head -n 1 "$_f" 2>/dev/null)
+    case "$_v" in
+        true|false) printf '%s\n' "$_v"; return 0 ;;
+    esac
+    return 1
+}
+
+# record_channel FILE VALUE: write a channel state file atomically. The
+# consumers re-validate it exactly like the other channel files before
+# trusting it.
+record_channel() {
+    _f=$1
+    _v=$2
+    printf '%s\n' "$_v" > "$_f.tmp.$$" || return 1
+    chmod 0644 "$_f.tmp.$$" || { rm -f "$_f.tmp.$$"; return 1; }
+    chown root:root "$_f.tmp.$$" 2>/dev/null
+    mv "$_f.tmp.$$" "$_f" || { rm -f "$_f.tmp.$$"; return 1; }
+    return 0
+}
+
+# greeter_write VALUE: mirror the reader state into the greeter session's
+# LIVE dconf database — through the session's own dconf service, not an
+# offline file write. The session's gsd-a11y-settings reads the key
+# through the same service (libdconf clients share the service's view of
+# the database, not the file), so an offline write updates the file while
+# the service's — and therefore every client's — view stays stale; a
+# write through the session bus updates the shared view, fires the change
+# signal to any already-running client, and lands before the plugin's
+# startup read. The write runs as the greeter session's own user (su; the
+# dynamic user only resolves while its session is live, which is exactly
+# when this mode runs) against the session's bus (/run/user/<uid>/bus,
+# derived from the home directory's owner). The session's snapd redirect
+# selects the live db path, so only that one path is written. The result
+# is verified by reading it back through the same bus.
+greeter_write() {
+    _v=$1
+    GREETER_HOME=$(greeter_home) || { log "the greeter home is gone; not mirroring"; return 1; }
+    log "mirroring into the greeter session's store ($GREETER_HOME)"
+    _uid=$(stat -c '%u' "$GREETER_HOME" 2>/dev/null) || return 1
+    _bus=/run/user/$_uid/bus
+    if [ ! -S "$_bus" ]; then
+        log "the greeter session's bus ($_bus) is not up; not mirroring"
+        return 1
+    fi
+    if [ ! -x "$RUNTIME/usr/bin/gsettings" ]; then
+        log "gsettings not present at $RUNTIME/usr/bin/gsettings; not mirroring"
+        return 1
+    fi
+    # The write runs as the greeter session's own user (the dynamic user
+    # only resolves while its session is live, which is exactly when this
+    # mode runs) against the session's own dconf service, so the shared
+    # view updates and the change signal reaches any running client. The
+    # inner script goes through a root-owned temporary file rather than a
+    # su -c string: the same commands verified individually pass while
+    # the multi-line -c form fails in the very same context, so the file
+    # form is the one used. The verify reads through the same bus (the
+    # session's view is the truth). The session's snapd redirect selects
+    # the live db path, so only that one path is written.
+    _f=/run/ucd-greeter-mirror.$$.sh
+    {
+        printf 'export HOME=%s\n' "$GREETER_HOME"
+        printf 'export XDG_CONFIG_HOME=%s\n' "$GREETER_HOME/snap/ubuntu-desktop-session/common/.config"
+        printf 'export XDG_RUNTIME_DIR=/run/user/%s\n' "$_uid"
+        printf 'export GSETTINGS_BACKEND=dconf\n'
+        printf 'export GIO_EXTRA_MODULES=%s\n' "$RUNTIME/usr/lib/x86_64-linux-gnu/gio/modules"
+        printf 'export XDG_DATA_DIRS=%s\n' "$RUNTIME/usr/share"
+        printf 'export DBUS_SESSION_BUS_ADDRESS=unix:path=%s\n' "$_bus"
+        printf 'if %s set org.gnome.desktop.a11y.applications screen-reader-enabled %s && %s get org.gnome.desktop.a11y.applications screen-reader-enabled | grep -Eqx %s; then exit 0; fi\n' \
+            "$RUNTIME/usr/bin/gsettings" "$_v" "$RUNTIME/usr/bin/gsettings" "\"$_v\""
+        printf 'exit 1\n'
+    } > "$_f" && chmod 0644 "$_f" && chown root:root "$_f"
+    _rc=1
+    if su gdm-greeter -s /bin/sh "$_f"; then
+        log "mirrored screen-reader-enabled=$_v into the greeter session's live db (session bus, verified)"
+        _rc=0
+    else
+        log "FAILED to mirror into the greeter session's live db"
+    fi
+    rm -f "$_f"
+    return "$_rc"
+}
+
+# last_real_user: real users are uid>=1000 with the shell /bin/bash (the
+# wizard-created account shape; the greeter and wizard identities are
+# dynamic sysusers users that only resolve while their session is live,
+# and every other system identity is uid<1000 or nologin). With exactly
+# one such user it is theirs; with several, the most recent session is
+# approximated by the newest session dconf db mtime (this image ships no
+# lastlog/lastlog2/last CLI, and the user db is rewritten on every
+# session settings change, so its mtime is the freshest per-user activity
+# marker available). A user with no db never wins — there is nothing
+# recorded to mirror.
+last_real_user() {
+    _users=$(getent passwd | awk -F: '$3 >= 1000 && $7 == "/bin/bash" {print $1}')
+    [ -n "$_users" ] || return 1
+    _count=$(printf '%s\n' "$_users" | grep -c .)
+    if [ "$_count" -eq 1 ]; then
+        printf '%s\n' "$_users"
+        return 0
+    fi
+    _best=
+    _best_t=0
+    for _u in $_users; do
+        _h=$(getent passwd "$_u" | cut -d: -f6)
+        _db="$_h/snap/ubuntu-desktop-session/common/.config/dconf/user"
+        [ -f "$_db" ] || continue
+        _t=$(stat -c %Y "$_db" 2>/dev/null) || continue
+        if [ "$_t" -gt "$_best_t" ]; then
+            _best_t=$_t
+            _best=$_u
+        fi
+    done
+    [ -n "$_best" ] && printf '%s\n' "$_best"
+}
+
+case "${1:-}" in
+    boot)
+        u=$(last_real_user)
+        if [ -z "$u" ]; then
+            log "boot: no real user to mirror from; the greeter starts with its defaults"
+            exit 0
+        fi
+        v=$(read_as "$u")
+        if [ "$v" = true ] || [ "$v" = false ]; then
+            source="the live db of $u"
+        else
+            v=$(channel_value "$DECISION") || {
+                log "boot: no reader preference for $u and no recorded handover decision; nothing to record"
+                exit 0
+            }
+            source="the recorded handover decision"
+        fi
+        log "boot: last real user $u; screen-reader-enabled=$v (from $source); recording the greeter state"
+        record_channel "$STATE" "$v" || log "boot: FAILED to record the greeter state"
+        ;;
+    handover)
+        wh=$(getent passwd gnome-initial-setup 2>/dev/null | cut -d: -f6)
+        if [ -z "$wh" ] || [ ! -d "$wh" ]; then
+            log "handover: the wizard home is gone (a stale ini from a previous boot); nothing to capture"
+            exit 0
+        fi
+        v=$(read_as gnome-initial-setup)
+        case "$v" in
+            true|false)
+                log "handover: live read (as gnome-initial-setup) screen-reader-enabled=$v; recording the decision and the greeter state"
+                record_channel "$DECISION" "$v" || log "handover: FAILED to record the decision"
+                record_channel "$STATE" "$v" || log "handover: FAILED to record the greeter state"
+                ;;
+            *)
+                log "handover: the live read found no value (the reader was never toggled); leaving any prior decision untouched"
+                ;;
+        esac
+        ;;
+    greeter)
+        v=$(channel_value "$STATE") || {
+            log "greeter: no recorded greeter state in the channel; nothing to mirror"
+            exit 0
+        }
+        # Identify the greeter session by its CLASS (a greeter-class
+        # loginctl session), never by name: the dynamic user's name and
+        # uid are not deterministic (gdm-greeter, gdm-greeter-2, uids
+        # 60578/60579 observed), and snapd eagerly pre-creates a
+        # similarly named root-owned home at boot. Wait (bounded) for the
+        # session, take ITS user's home, and only then write.
+        _sess=
+        _i=0
+        while [ "$_i" -lt 30 ]; do
+            for _sid in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
+                [ "$(loginctl show-session "$_sid" -p Class --value 2>/dev/null)" = greeter ] && {
+                    _sess=$_sid
+                    break
+                }
+            done
+            [ -n "$_sess" ] && break
+            sleep 1
+            _i=$((_i + 1))
+        done
+        if [ -z "$_sess" ]; then
+            log "greeter: no greeter-class session within 30s; nothing to mirror"
+            exit 0
+        fi
+        _user=$(loginctl show-session "$_sess" -p Name --value 2>/dev/null)
+        GREETER_HOME=$(getent passwd "$_user" 2>/dev/null | cut -d: -f6)
+        if [ -z "$GREETER_HOME" ] || [ ! -d "$GREETER_HOME" ]; then
+            log "greeter: the greeter session ($_sess, $_user) has no home yet; nothing to mirror"
+            exit 0
+        fi
+        # The home may have been created root-owned ahead of the session's
+        # setup (gdm chowns it to the dynamic user once allocated); a write
+        # through the session's dconf service before that fails EACCES.
+        # Wait (bounded) for the ownership to settle at the session's uid.
+        _i=0
+        while [ "$(stat -c %u "$GREETER_HOME" 2>/dev/null)" = 0 ] && [ "$_i" -lt 30 ]; do
+            sleep 1
+            _i=$((_i + 1))
+        done
+        if [ "$(stat -c %u "$GREETER_HOME" 2>/dev/null)" = 0 ]; then
+            log "greeter: the greeter home is still root-owned after 30s; nothing to mirror"
+            exit 0
+        fi
+        log "greeter: the greeter session's home appeared ($_sess, $_user, $GREETER_HOME); mirroring screen-reader-enabled=$v into its store"
+        greeter_write "$v"
+        ;;
+    *)
+        echo "usage: ucd-a11y-greeter-mirror boot|handover|greeter" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

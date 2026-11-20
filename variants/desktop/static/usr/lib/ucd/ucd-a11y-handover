@@ -119,6 +119,41 @@ getent passwd "$target" >/dev/null 2>&1 || exit 0
 marker="$HOME/.cache/ucd-a11y-handover.done"
 [ -e "$marker" ] && exit 0
 
+# THE LIVE-READ DECISION: provd's recorded ini carries provd's cached view
+# of the reader state, which lags the greeter chord (the chord flips the
+# key through the session bus; provd never re-reads it), and the wizard
+# home is wiped at the handoff — after that the live state is unreachable.
+# At user creation a root oneshot (ucd-a11y-handover-live, triggered by
+# ucd-a11y-handover-live.path on the ini appearing, while the wizard
+# session is still alive) read the LIVE key from the wizard session's dconf
+# db as the wizard user and recorded the decision in the channel as
+# ucd-handover-live-reader. A live `true` overrides the ini's recorded
+# value below; false, empty, or a missing/invalid decision file falls back
+# to the ini. The same channel-file rules apply: regular, not a symlink,
+# not world-writable, owned by the provisioning group or root.
+reader_live=
+decision=$channel/ucd-handover-live-reader
+if [ -f "$decision" ] && [ ! -L "$decision" ]; then
+    case "$(stat -c '%a' "$decision" 2>/dev/null)" in
+        *[2367]) ;;
+        *)
+            _lu=$(stat -c '%u' "$decision" 2>/dev/null)
+            _lg=$(stat -c '%g' "$decision" 2>/dev/null)
+            if [ "$_lg" = "$gis_gid" ] || [ "$_lu" = 0 ]; then
+                _lv=$(head -n 1 "$decision" 2>/dev/null)
+                case "$_lv" in
+                    true|false) reader_live=$_lv ;;
+                esac
+            fi
+            ;;
+    esac
+fi
+if [ -n "$reader_live" ]; then
+    echo "ucd-a11y-handover: live-read decision screen-reader-enabled=$reader_live" >&2
+else
+    echo "ucd-a11y-handover: no live-read decision; using the recorded values" >&2
+fi
+
 runtime=""
 for candidate in /snap/gnome-desktop-runtime/current /snap/gnome-desktop-runtime/x1; do
     if [ -x "$candidate/usr/bin/gsettings" ]; then
@@ -208,6 +243,10 @@ while IFS= read -r line; do
                     continue
                     ;;
             esac
+            if [ "$schema.$key" = "org.gnome.desktop.a11y.applications.screen-reader-enabled" ] && [ "$reader_live" = true ]; then
+                echo "ucd-a11y-handover: screen-reader-enabled: live-read override true (the ini recorded $val)" >&2
+                val=true
+            fi
             if "$runtime/usr/bin/gsettings" set "$schema" "$key" "$val"; then
                 applied=1
             else

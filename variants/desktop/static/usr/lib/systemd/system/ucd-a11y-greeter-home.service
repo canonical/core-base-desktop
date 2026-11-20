@@ -1,0 +1,18 @@
+[Unit]
+Description=Mirror the recorded reader state into the greeter session's store
+# Triggered by ucd-a11y-greeter-home.path when the greeter session's
+# dynamic-user home appears (every boot's greeter session start). Reads
+# the recorded state from the handover channel (ucd-handover-greeter-
+# state, written by ucd-a11y-greeter-mirror boot|handover) and writes it
+# through the greeter session's own dconf service, ahead of the session's
+# gsd-a11y-settings startup read. Failures are logged and non-fatal.
+RequiresMountsFor=/etc/dconf/channel/handover
+# The path unit re-arms on directory-creation events under /run/gdm3/home
+# before the real home appears; the run is guarded and idempotent, so let
+# every trigger through rather than tripping the default start-rate limit
+# and blocking the real one.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/ucd/ucd-a11y-greeter-mirror greeter

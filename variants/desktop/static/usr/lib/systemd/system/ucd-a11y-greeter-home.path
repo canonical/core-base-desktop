@@ -1,0 +1,19 @@
+[Unit]
+Description=Watch for the greeter session's home appearing (the greeter starting)
+# The greeter session runs as the dynamic user gdm-greeter, whose home
+# (/run/gdm3/home/gdm-greeter) is created fresh on every boot the moment
+# the session's first snap app spawns — neither the user nor its dconf
+# store exists earlier, so the boot-time mirror records the wanted state
+# in the channel and this unit carries it into the greeter's own store at
+# exactly the moment the store becomes writable, ahead of the session's
+# gsd-a11y-settings (whose startup reads screen-reader-enabled and starts
+# orca when it is true). The home is ephemeral (tmpfs /run), so this
+# re-fires at every boot's greeter session.
+
+[Path]
+# The instance suffix is not deterministic (gdm-greeter, gdm-greeter-2,
+# ... — systemd's dynamic-user instance counting), so watch the glob.
+PathExistsGlob=/run/gdm3/home/gdm-greeter*
+
+[Install]
+WantedBy=multi-user.target

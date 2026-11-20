@@ -1,0 +1,22 @@
+[Unit]
+Description=Mirror the last user's screen reader preference into the GDM greeter
+# The greeter session's gsd-a11y-settings starts orca automatically when
+# org.gnome.desktop.a11y.applications screen-reader-enabled is true, so a
+# blind user gets spoken feedback the moment the greeter renders. The
+# greeter session runs as the dynamic user gdm-greeter, whose home
+# (/run/gdm3/home/gdm-greeter, tmpfs) and dconf store are created fresh at
+# every boot the moment the session starts — nothing can write them
+# earlier, and a stale state cannot stick. This unit therefore only
+# RECORDS the wanted state in the handover channel (from the most recent
+# real user's preference, in both directions of their latest choice);
+# ucd-a11y-greeter-home.path + .service carry it into the greeter's own
+# store when the session starts. Reads are direct dconf db reads (no bus)
+# run as the owning user. Failures are logged and non-fatal.
+RequiresMountsFor=/etc/dconf/channel/handover
+After=gdm-homedirs.service
+Before=gdm.service display-manager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/ucd/ucd-a11y-greeter-mirror boot
