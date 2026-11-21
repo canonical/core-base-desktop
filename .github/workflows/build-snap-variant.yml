@@ -54,7 +54,7 @@ jobs:
             asset: core26-desktop-arm64.snap
     runs-on: ${{ matrix.runs-on }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y fakeroot squashfs-tools
       - name: Set up LXD (mirrors snapcore/action-build)
@@ -88,7 +88,7 @@ jobs:
                  --title "desktop/26-thin latest desktop-variant snap" \
                  --notes "Rolling latest desktop-variant core26-desktop build from desktop/26 (formerly desktop/26-thin); assets are replaced on every green build. Consumed by ubuntu-core-desktop's thin image CI. The 2026-11-09 rename: old fat desktop/26 → desktop/26-fat; thin desktop/26-thin → desktop/26; default switched.)"
           gh release upload desktop-26-thin-latest ${{ matrix.asset }} -R "$GITHUB_REPOSITORY" --clobber
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: snap-desktop-variant-${{ matrix.arch }}
           path: ${{ matrix.asset }}
