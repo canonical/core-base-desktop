@@ -340,21 +340,6 @@ parts:
     override-prime: |
       # No files from this step in prime
 
-  wallpaper-packages:
-    after:
-      - chisel-libs
-    plugin: nil
-    stage-packages:
-      - ubuntu-wallpapers
-    override-build: |
-      tmpdir="$(mktemp -d)"
-      mv "${CRAFT_PART_INSTALL}"/* "$tmpdir"/
-      mkdir -p "${CRAFT_PART_INSTALL}"/base
-      mv "$tmpdir"/* "${CRAFT_PART_INSTALL}"/base/
-      rmdir "$tmpdir"
-    override-prime: |
-      # No files from this step in prime
-
   snapd-files:
     plugin: nil
     source: .
@@ -569,7 +554,6 @@ parts:
   hooks:
     after:
       - chisel-libs
-      - wallpaper-packages
       - snapd-files
       - splash-theme
       - fuse-broker
