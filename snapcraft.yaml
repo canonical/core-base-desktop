@@ -95,7 +95,12 @@ parts:
     source-type: git
     source-branch: '26.04'
     override-build: |
-      go install github.com/canonical/chisel/cmd/chisel@latest
+      # The local pkgproxy caches Go modules only at module roots, so
+      # the @latest resolution of this subpackage path can 403 through
+      # it (build.log 2026-11-27); bypass it just for this fetch and
+      # pin the tool to a known version for reproducibility.
+      GOPROXY=https://proxy.golang.org,direct \
+        go install github.com/canonical/chisel/cmd/chisel@v1.5.1
       
       # Define the system utilities that we want to include in the base
       # These are the ones where we can probably slim down the number of binaries
